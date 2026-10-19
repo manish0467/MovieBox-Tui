@@ -122,6 +122,36 @@ providers: CloudFront signed cookies, `Referer` and `User-Agent` have to be
 replayed. The Kotlin player applies them through
 `DefaultHttpDataSource.Factory#setDefaultRequestProperties`.
 
+## Features and Parity Details
+
+### 1. Favorites Library
+- Backed by the bridge functions `nativeFavorites` and `nativeToggleFavorite`.
+- Accessible from the **Favorites** bottom navigation destination.
+- Heart toggle icon on the `DetailsScreen` top bar updates favorite status in real time.
+- Tap a favorite to open its metadata and releases, or tap the heart badge to remove.
+
+### 2. Subtitles Selection & Attachment
+- Fetched via `nativeSubtitles` using the subject, resource ID and sibling IDs.
+- Subtitle tracks are downloaded to local cache (`cacheDir/subtitles`) using the provider's request headers.
+- Attached to Media3 as `MediaItem.SubtitleConfiguration` with the proper MIME type (`TEXT_VTT` or `APPLICATION_SUBRIP`).
+- In-player subtitle picker allows switching subtitle tracks or turning subtitles off on the fly.
+- Mandatory stream headers (`User-Agent`, `Referer`, CloudFront cookies) are strictly preserved on all media requests.
+
+### 3. Resolution Picker
+- Multi-resolution releases in `DetailsScreen` can be filtered with resolution chips (`All`, `1080p`, `720p`, `480p`, etc.).
+- In `PlayerActivity`, a quality/resolution picker overlay allows capping max video height via `TrackSelectionParameters`.
+
+### 4. Continue Watching & Watch History
+- Position reporting runs periodically during playback and flushes on pause, stop, and destroy.
+- Watch progress is saved to `<data_dir>/playback/*.json` conforming to `PendingPlaybackState`, which the bridge's `HistoryManager::new()` reconciles into `history.json` on the next `nativeHistory()` call.
+- The **History** tab displays the full watch history with progress bars and quick resume.
+- An in-progress **Continue Watching** deck is rendered on the home screen for easy one-tap resumption.
+
+### 5. Provider Switching UX & Home Deck
+- Horizontally scrollable provider switcher with active indicators and capability badges.
+- When on a provider supporting homepage (e.g., MovieBox), a home deck with tabs (Featured, Movies, Series) is loaded.
+- For search-only providers (4KHDHub, BDIX, Dramachi), quick category suggestion chips are shown.
+
 ## Feature parity
 
 | Feature | Terminal | Android |
@@ -132,7 +162,9 @@ replayed. The Kotlin player applies them through
 | Playback (headers, subtitles) | ✅ | ✅ (Media3) |
 | Poster art | ✅ (Kitty/Sixel) | ✅ (Coil) |
 | Favorites | ✅ | ✅ |
-| Watch history | ✅ | ✅ |
+| Watch history & continue watching | ✅ | ✅ |
+| Multi-resolution picker | ✅ | ✅ |
+| Provider switching & home deck | ✅ | ✅ |
 | Batch downloads | ✅ | ⏳ planned |
 | Live TV / M3U | ✅ | ⏳ planned |
 | Stremio addons | ✅ | ⏳ planned |

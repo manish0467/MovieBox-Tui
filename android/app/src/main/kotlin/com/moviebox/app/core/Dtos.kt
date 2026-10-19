@@ -113,9 +113,11 @@ data class FavoriteItem(
     val stype: Int = 1,
     @SerialName("release_year") val releaseYear: String = "",
     @SerialName("added_at") val addedAt: Long = 0,
-)
+) {
+    val isSeries: Boolean get() = stype == 2
+}
 
-/** Mirrors `moviebox_tui::history::WatchHistoryItem` (only the fields we use). */
+/** Mirrors `moviebox_tui::history::WatchHistoryItem`. */
 @Serializable
 data class WatchHistoryItem(
     val provider: String = "",
@@ -126,7 +128,41 @@ data class WatchHistoryItem(
     val episode: Int = 0,
     @SerialName("progress_seconds") val progressSeconds: Long = 0,
     @SerialName("duration_seconds") val durationSeconds: Long? = null,
-    @SerialName("last_watched") val lastWatched: Long = 0,
+    val timestamp: Long = 0,
+    val completed: Boolean = false,
+    val stype: Long = 1,
+    @SerialName("release_year") val releaseYear: String = "",
+    @SerialName("stream_filename") val streamFilename: String? = null,
+) {
+    val progressFraction: Float
+        get() {
+            val dur = durationSeconds ?: return 0f
+            return if (dur > 0) (progressSeconds.toFloat() / dur.toFloat()).coerceIn(0f, 1f) else 0f
+        }
+
+    val isSeries: Boolean
+        get() = stype == 2L || season > 0 || episode > 0
+
+    val isInProgress: Boolean
+        get() = !completed && progressSeconds >= 10 && (durationSeconds == null || progressSeconds < (durationSeconds * 0.90).toLong())
+}
+
+/** Mirrors `moviebox_tui::history::PendingPlaybackState` for position reporting. */
+@Serializable
+data class PendingPlaybackState(
+    val provider: String,
+    @SerialName("subject_id") val subjectId: String,
+    val season: Int,
+    val episode: Int,
+    @SerialName("progress_seconds") val progressSeconds: Long,
+    @SerialName("duration_seconds") val durationSeconds: Long? = null,
+    val completed: Boolean = false,
+    val timestamp: Long = 0,
+    val title: String? = null,
+    @SerialName("cover_url") val coverUrl: String? = null,
+    val stype: Long? = null,
+    @SerialName("release_year") val releaseYear: String? = null,
+    @SerialName("stream_filename") val streamFilename: String? = null,
 )
 
 /** Provider descriptor returned by `nativeProviders`. */
@@ -166,6 +202,12 @@ data class ProvidersPayload(val providers: List<ProviderInfo> = emptyList())
 
 @Serializable
 data class DetailsPayload(val details: MediaDetails)
+
+@Serializable
+data class ReleasesPayload(val releases: List<Release> = emptyList())
+
+@Serializable
+data class SubtitlesPayload(val captions: List<SubtitleOption> = emptyList())
 
 @Serializable
 data class ToggleFavoritePayload(val favorite: Boolean = false)

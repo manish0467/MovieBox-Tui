@@ -14,12 +14,21 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.moviebox.app.core.PlaybackSource
+import com.moviebox.app.core.SubtitleOption
 import com.moviebox.app.player.PlayerActivity
 import com.moviebox.app.ui.DetailsViewModel
 import com.moviebox.app.ui.MovieBoxViewModel
 import com.moviebox.app.ui.screens.DetailsScreen
 import com.moviebox.app.ui.screens.HomeScreen
 import com.moviebox.app.ui.theme.MovieBoxTheme
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
+
+private val appJson = Json {
+    ignoreUnknownKeys = true
+    isLenient = true
+    coerceInputValues = true
+}
 
 class MainActivity : ComponentActivity() {
 
@@ -39,12 +48,48 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun launchPlayer(source: PlaybackSource, title: String) {
+    override fun onResume() {
+        super.onResume()
+        homeViewModel.loadLibrary()
+    }
+
+    private fun launchPlayer(
+        source: PlaybackSource,
+        title: String,
+        provider: String = "",
+        subjectId: String = "",
+        coverUrl: String? = null,
+        season: Int = 0,
+        episode: Int = 0,
+        year: String? = null,
+        startPositionSec: Long = 0L,
+        subtitleUrl: String? = null,
+        subtitleName: String? = null,
+        subtitles: List<SubtitleOption> = emptyList(),
+    ) {
         val headers = source.headerMap.map { (key, value) -> "$key=$value" }
+        val subtitlesJson = if (subtitles.isNotEmpty()) {
+            appJson.encodeToString(
+                ListSerializer(SubtitleOption.serializer()),
+                subtitles,
+            )
+        } else {
+            ""
+        }
         val intent = Intent(this, PlayerActivity::class.java).apply {
             putExtra(PlayerActivity.EXTRA_URL, source.url)
             putExtra(PlayerActivity.EXTRA_HEADERS, ArrayList(headers))
             putExtra(PlayerActivity.EXTRA_TITLE, title)
+            putExtra(PlayerActivity.EXTRA_PROVIDER, provider)
+            putExtra(PlayerActivity.EXTRA_SUBJECT_ID, subjectId)
+            putExtra(PlayerActivity.EXTRA_COVER_URL, coverUrl)
+            putExtra(PlayerActivity.EXTRA_SEASON, season)
+            putExtra(PlayerActivity.EXTRA_EPISODE, episode)
+            putExtra(PlayerActivity.EXTRA_YEAR, year)
+            putExtra(PlayerActivity.EXTRA_START_POSITION, startPositionSec)
+            putExtra(PlayerActivity.EXTRA_SUBTITLE_URL, subtitleUrl)
+            putExtra(PlayerActivity.EXTRA_SUBTITLE_NAME, subtitleName)
+            putExtra(PlayerActivity.EXTRA_SUBTITLES_JSON, subtitlesJson)
         }
         startActivity(intent)
     }
@@ -54,7 +99,20 @@ class MainActivity : ComponentActivity() {
 private fun MovieBoxApp(
     homeViewModel: MovieBoxViewModel,
     detailsViewModel: DetailsViewModel,
-    onPlay: (PlaybackSource, String) -> Unit,
+    onPlay: (
+        source: PlaybackSource,
+        title: String,
+        provider: String,
+        subjectId: String,
+        coverUrl: String?,
+        season: Int,
+        episode: Int,
+        year: String?,
+        startPositionSec: Long,
+        subtitleUrl: String?,
+        subtitleName: String?,
+        subtitles: List<SubtitleOption>,
+    ) -> Unit,
 ) {
     val navController = rememberNavController()
     val homeState by homeViewModel.state.collectAsStateWithLifecycle()
@@ -67,9 +125,22 @@ private fun MovieBoxApp(
                 onQueryChange = homeViewModel::onQueryChange,
                 onSearch = homeViewModel::search,
                 onProviderSelected = homeViewModel::selectProvider,
+                onSelectMainTab = homeViewModel::selectMainTab,
+                onSelectHomeDeckTab = homeViewModel::selectHomeDeckTab,
+                onToggleFavorite = homeViewModel::toggleFavorite,
                 onOpenItem = { item ->
                     detailsViewModel.load(item.id.provider, item.id.value)
                     navController.navigate("details/${item.id.provider}/${item.id.value}")
+                },
+                onOpenHistoryItem = { historyItem ->
+                    detailsViewModel.load(historyItem.provider, historyItem.subjectId)
+                    if (historyItem.season > 0) {
+                        detailsViewModel.selectSeason(historyItem.season)
+                    }
+                    if (historyItem.episode > 0) {
+                        detailsViewModel.selectEpisode(historyItem.episode)
+                    }
+                    navController.navigate("details/${historyItem.provider}/${historyItem.subjectId}")
                 },
             )
         }
@@ -80,17 +151,32 @@ private fun MovieBoxApp(
                 navArgument("provider") { type = NavType.StringType },
                 navArgument("subjectId") { type = NavType.StringType },
             ),
-        ) { entry ->
-            val provider = entry.arguments?.getString("provider").orEmpty()
-            val subjectId = entry.arguments?.getString("subjectId").orEmpty()
+        ) {
             DetailsScreen(
                 state = detailsState,
                 onBack = { navController.popBackStack() },
+                onToggleFavorite = detailsViewModel::toggleFavorite,
+                onResolutionSelected = detailsViewModel::selectResolution,
+                onSubtitleSelected = detailsViewModel::selectSubtitle,
                 onSeasonSelected = detailsViewModel::selectSeason,
                 onEpisodeSelected = detailsViewModel::selectEpisode,
-                onPlay = { release ->
+                onPlay = { release, sub ->
                     detailsViewModel.resolve(release) { source ->
-                        onPlay(source, detailsState.details?.title.orEmpty())
+                        val details = detailsState.details
+                        onPlay(
+                            source,
+                            details?.title.orEmpty(),
+                            details?.id?.provider.orEmpty(),
+                            details?.id?.value.orEmpty(),
+                            details?.posterUrl,
+                            detailsState.selectedSeason,
+                            detailsState.selectedEpisode,
+                            details?.year,
+                            0L,
+                            sub?.url,
+                            sub?.name,
+                            detailsState.subtitles,
+                        )
                     }
                 },
             )

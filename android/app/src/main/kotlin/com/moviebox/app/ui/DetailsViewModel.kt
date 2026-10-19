@@ -20,10 +20,25 @@ data class DetailsUiState(
     val subtitles: List<SubtitleOption> = emptyList(),
     val selectedSeason: Int = 0,
     val selectedEpisode: Int = 0,
+    val selectedResolution: String = "All",
+    val availableResolutions: List<String> = emptyList(),
+    val selectedSubtitle: SubtitleOption? = null,
+    val isFavorite: Boolean = false,
     val loading: Boolean = true,
     val resolving: Boolean = false,
     val error: String? = null,
-)
+) {
+    val filteredReleases: List<Release>
+        get() = if (selectedResolution == "All") {
+            releases
+        } else {
+            releases.filter {
+                it.quality?.equals(selectedResolution, ignoreCase = true) == true ||
+                it.sourceLabel.contains(selectedResolution, ignoreCase = true) ||
+                it.filename.contains(selectedResolution, ignoreCase = true)
+            }
+        }
+}
 
 class DetailsViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -38,6 +53,7 @@ class DetailsViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { repository.details(provider, subjectId) }
                 .onSuccess { details ->
                     _state.update { it.copy(details = details, loading = false) }
+                    checkFavorite(provider, subjectId)
                     loadReleases(provider, subjectId, 0, 0)
                 }
                 .onFailure { error ->
@@ -46,6 +62,42 @@ class DetailsViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
         }
+    }
+
+    private fun checkFavorite(provider: String, subjectId: String) {
+        viewModelScope.launch {
+            runCatching { repository.favorites() }
+                .onSuccess { favs ->
+                    val isFav = favs.any { it.provider == provider && it.subjectId == subjectId }
+                    _state.update { it.copy(isFavorite = isFav) }
+                }
+        }
+    }
+
+    fun toggleFavorite() {
+        val details = _state.value.details ?: return
+        viewModelScope.launch {
+            val item = com.moviebox.app.core.FavoriteItem(
+                provider = details.id.provider,
+                subjectId = details.id.value,
+                title = details.title,
+                coverUrl = details.posterUrl,
+                stype = if (details.isSeries) 2 else 1,
+                releaseYear = details.year.orEmpty(),
+            )
+            runCatching { repository.toggleFavorite(item) }
+                .onSuccess { fav ->
+                    _state.update { it.copy(isFavorite = fav) }
+                }
+        }
+    }
+
+    fun selectResolution(resolution: String) {
+        _state.update { it.copy(selectedResolution = resolution) }
+    }
+
+    fun selectSubtitle(subtitle: SubtitleOption?) {
+        _state.update { it.copy(selectedSubtitle = subtitle) }
     }
 
     fun selectSeason(season: Int) {
@@ -70,7 +122,22 @@ class DetailsViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(loading = true) }
             runCatching { repository.episodeStreams(provider, subjectId, season, episode) }
                 .onSuccess { releases ->
-                    _state.update { it.copy(releases = releases, loading = false) }
+                    val distinctResolutions = releases.mapNotNull { it.quality }
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                    val available = if (distinctResolutions.isNotEmpty()) {
+                        listOf("All") + distinctResolutions
+                    } else {
+                        emptyList()
+                    }
+                    _state.update {
+                        it.copy(
+                            releases = releases,
+                            availableResolutions = available,
+                            selectedResolution = "All",
+                            loading = false,
+                        )
+                    }
                     loadSubtitles(provider, subjectId, releases, season, episode)
                 }
                 .onFailure { error ->
@@ -94,7 +161,9 @@ class DetailsViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 repository.subtitles(subjectId, resourceId, listOf(subjectId), season, episode)
             }.onSuccess { captions ->
-                _state.update { it.copy(subtitles = captions) }
+                val preferred = captions.firstOrNull { it.name.contains("English", ignoreCase = true) }
+                    ?: captions.firstOrNull()
+                _state.update { it.copy(subtitles = captions, selectedSubtitle = preferred) }
             }
         }
     }
