@@ -1,6 +1,6 @@
 # Testing & QA Architecture
 
-This document describes the testing architecture, quality assurance procedures, and validation guidelines for MovieBox-TUI. The current workspace contains **550 automated tests**, including 15 opt-in ignored live-stream tests.
+This document describes the testing architecture, quality assurance procedures, and validation guidelines for MovieBox-TUI. The current workspace contains **561 automated tests**, including 15 opt-in ignored live-stream tests.
 
 ## 1. Test Architecture
 
