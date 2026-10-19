@@ -76,6 +76,10 @@ termux-setup-storage
 > [!IMPORTANT]
 > एंड्रॉइड पर वीडियो प्लेबैक आपके इंस्टॉल किए गए बाहरी मीडिया प्लेयर (जैसे VLC, Just Player, या MX Player) के माध्यम से शुरू होता है।
 
+### नेटिव Android ऐप
+
+MovieBox-TUI में Jetpack Compose और Media3 से बना एक नेटिव Android ऐप भी शामिल है। यह साझा Rust इंजन का उपयोग करके Android पर ब्राउज़िंग और वीडियो प्लेबैक देता है। सोर्स से डिबग APK बनाने के लिए Android NDK से `arm64-v8a` Rust लाइब्रेरी बनाएँ, फिर `android/` डायरेक्टरी में `./gradlew assembleDebug` चलाएँ।
+
 <details>
 <summary><b>Cargo और सोर्स कोड से बिल्ड करें</b></summary>
 

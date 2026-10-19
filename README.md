@@ -72,11 +72,9 @@ curl -fsSL https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.
 termux-setup-storage
 ```
 
-### Android (native app)
+### Native Android app
 
-A native Android application (Jetpack Compose + Media3) is built on top of the
-same Rust core engine. See [docs/android.md](docs/android.md) for the build
-instructions.
+MovieBox-TUI also includes a native Android app built with Jetpack Compose and Media3. It uses the shared Rust engine and provides an Android interface for browsing and playback. To build a debug APK from source, build the Rust library for `arm64-v8a` with the Android NDK, then run `./gradlew assembleDebug` from the `android/` directory. See [docs/android.md](docs/android.md) for the full build instructions.
 
 <details>
 <summary><b>Cargo & Source Build</b></summary>

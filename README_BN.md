@@ -76,6 +76,10 @@ termux-setup-storage
 > [!IMPORTANT]
 > অ্যান্ড্রয়েডে ভিডিও প্লেব্যাক আপনার ইনস্টল করা এক্সটার্নাল প্লেয়ারের (যেমন VLC, Just Player, বা MX Player) মাধ্যমে চালু হয়।
 
+### নেটিভ Android অ্যাপ
+
+MovieBox-TUI-তে Jetpack Compose ও Media3 দিয়ে তৈরি একটি নেটিভ Android অ্যাপও রয়েছে। এটি একই Rust ইঞ্জিন ব্যবহার করে এবং Android-এ ব্রাউজিং ও প্লেব্যাকের সুবিধা দেয়। সোর্স থেকে ডিবাগ APK তৈরি করতে Android NDK দিয়ে `arm64-v8a` Rust লাইব্রেরি বিল্ড করুন, তারপর `android/` ডিরেক্টরি থেকে `./gradlew assembleDebug` চালান।
+
 <details>
 <summary><b>Cargo ও সোর্স কোড থেকে বিল্ড</b></summary>
 

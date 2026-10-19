@@ -76,6 +76,10 @@ termux-setup-storage
 > [!IMPORTANT]
 > La reproducción de video en Android se abre mediante tu reproductor externo instalado (como VLC, Just Player, o MX Player).
 
+### Aplicación nativa para Android
+
+MovieBox-TUI también incluye una aplicación nativa para Android creada con Jetpack Compose y Media3. Comparte el motor Rust y ofrece navegación y reproducción en Android. Para generar un APK de depuración desde el código fuente, compila la biblioteca Rust para `arm64-v8a` con Android NDK y luego ejecuta `./gradlew assembleDebug` dentro del directorio `android/`.
+
 <details>
 <summary><b>Instalación con Cargo o compilación desde el código fuente</b></summary>
 
