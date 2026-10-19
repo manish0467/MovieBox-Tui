@@ -164,8 +164,11 @@ class MovieBoxRepository {
     }
 
     /**
-     * Records watch progress back to the bridge via the pending playback state
-     * file convention that `HistoryManager::new()` reconciles.
+     * Records watch progress back to the bridge.
+     *
+     * The bridge owns the history file, so the progress is written through
+     * `nativeRecordWatchProgress`. The pending-playback-state file remains as
+     * a fallback for the case where the bridge call is unavailable.
      */
     suspend fun recordWatchProgress(
         context: Context,
@@ -181,6 +184,34 @@ class MovieBoxRepository {
         releaseYear: String? = null,
         stype: Long = if (season > 0 || episode > 0) 2L else 1L,
     ) = withContext(Dispatchers.IO) {
+        val state = PendingPlaybackState(
+            provider = provider,
+            subjectId = subjectId,
+            season = season,
+            episode = episode,
+            progressSeconds = progressSeconds,
+            durationSeconds = durationSeconds,
+            completed = completed,
+            timestamp = System.currentTimeMillis() / 1000,
+            title = title,
+            coverUrl = coverUrl,
+            stype = stype,
+            releaseYear = releaseYear,
+        )
+        val payload = json.encodeToString(PendingPlaybackState.serializer(), state)
+
+        val recorded = runCatching {
+            val raw = NativeBridge.nativeRecordWatchProgress(payload)
+            val root = json.parseToJsonElement(raw).jsonObject
+            root["ok"]?.jsonPrimitive?.booleanOrNull == true
+        }.getOrDefault(false)
+
+        if (recorded) {
+            return@withContext
+        }
+
+        // Fallback: the Rust core reconciles pending playback states from the
+        // playback directory on the next history read.
         runCatching {
             val playbackDir = context.filesDir.resolve("playback")
             if (!playbackDir.exists()) {
@@ -189,21 +220,7 @@ class MovieBoxRepository {
             val safeProvider = provider.replace("[^a-zA-Z0-9]".toRegex(), "_")
             val safeSubject = subjectId.replace("[^a-zA-Z0-9]".toRegex(), "_")
             val file = playbackDir.resolve("${safeProvider}_${safeSubject}_${season}_${episode}.json")
-            val state = PendingPlaybackState(
-                provider = provider,
-                subjectId = subjectId,
-                season = season,
-                episode = episode,
-                progressSeconds = progressSeconds,
-                durationSeconds = durationSeconds,
-                completed = completed,
-                timestamp = System.currentTimeMillis() / 1000,
-                title = title,
-                coverUrl = coverUrl,
-                stype = stype,
-                releaseYear = releaseYear,
-            )
-            file.writeText(json.encodeToString(PendingPlaybackState.serializer(), state))
+            file.writeText(payload)
         }
     }
 

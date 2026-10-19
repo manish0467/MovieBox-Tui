@@ -60,5 +60,8 @@ object NativeBridge {
     external fun nativeHistory(): String
 
     @JvmStatic
+    external fun nativeRecordWatchProgress(itemJson: String): String
+
+    @JvmStatic
     external fun nativePosterUrlHeaders(url: String): String
 }
