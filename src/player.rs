@@ -2128,7 +2128,21 @@ mod tests {
         super::configure_detached_process(&mut cmd);
         let mut child = cmd.spawn().expect("spawn detached sh");
         let pid = child.id() as libc::pid_t;
-        std::thread::sleep(std::time::Duration::from_millis(40));
+        // Wait until the child really left the parent's session and ignored
+        // SIGHUP. Signalling it earlier races the `pre_exec` hook and would
+        // kill the child with the inherited default disposition.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while std::time::Instant::now() < deadline {
+            if unsafe { libc::getsid(pid) } == pid {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert_eq!(
+            unsafe { libc::getsid(pid) },
+            pid,
+            "the detached child never created its own session"
+        );
         unsafe {
             libc::kill(pid, libc::SIGHUP);
             libc::kill(-pid, libc::SIGHUP);
