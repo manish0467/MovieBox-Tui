@@ -19,7 +19,8 @@ android {
         versionName = "0.1.0"
 
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            // arm64-v8a covers real devices, x86_64 covers the emulator.
+            abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
 
