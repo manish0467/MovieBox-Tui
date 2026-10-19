@@ -344,6 +344,26 @@ impl Bridge {
         Ok(json!({ "items": manager.recent }))
     }
 
+    /// Records watch progress for a title.
+    ///
+    /// The payload is a JSON object with the same shape as
+    /// `moviebox_tui::history::WatchHistoryItem`, plus the optional
+    /// `progress_seconds`, `duration_seconds` and `completed` overrides.
+    pub fn record_watch_progress(&self, item_json: &str) -> Result<Value, String> {
+        let item: moviebox_tui::history::WatchHistoryItem = serde_json::from_str(item_json)
+            .map_err(|err| format!("invalid history payload: {err}"))?;
+
+        let progress = item.progress_seconds;
+        let duration = item.duration_seconds;
+        let completed = item.completed;
+
+        let mut manager = moviebox_tui::history::HistoryManager::new();
+        manager.update_progress(item, progress, duration, completed);
+        manager.save();
+
+        Ok(json!({ "recorded": true }))
+    }
+
     /// The `User-Agent` the core engine uses for provider requests.
     pub fn user_agent(&self) -> &str {
         self.service.client.user_agent()

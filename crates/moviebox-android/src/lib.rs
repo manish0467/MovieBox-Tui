@@ -246,6 +246,19 @@ pub extern "system" fn Java_com_moviebox_app_core_NativeBridge_nativeHistory<'lo
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moviebox_app_core_NativeBridge_nativeRecordWatchProgress<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    item_json: JString<'local>,
+) -> jstring {
+    let item_json = read_string(&mut env, &item_json);
+    match bridge().record_watch_progress(&item_json) {
+        Ok(value) => return_json(&mut env, api::ok_envelope(&value)),
+        Err(err) => error_json(&mut env, &err),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_com_moviebox_app_core_NativeBridge_nativePosterUrlHeaders<'local>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
