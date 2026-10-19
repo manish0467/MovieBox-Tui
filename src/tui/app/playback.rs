@@ -1454,6 +1454,16 @@ mod tests {
     }
     #[tokio::test]
     async fn test_explicit_player_incompatible_does_not_launch_alternative() {
+        let _guard = ENV_LOCK.lock().await;
+        let original_path = std::env::var_os("PATH");
+        let original_player = std::env::var(crate::player::ENV_MOVIEBOX_PLAYER).ok();
+        let test_path =
+            std::env::temp_dir().join(format!("playback_player_test_{}", std::process::id()));
+        std::fs::create_dir_all(&test_path).unwrap();
+        unsafe {
+            std::env::set_var("PATH", &test_path);
+            std::env::set_var(crate::player::ENV_MOVIEBOX_PLAYER, "android");
+        }
         let mut app = crate::tui::app::App::new();
         app.state.available_players = vec![
             crate::tui::state::PlayerKind::Mpv,
@@ -1479,6 +1489,20 @@ mod tests {
         app.state.is_resolving_playback = true;
         app.dispatch_playback_or_notify(source);
         assert!(app.state.pending_playback_source.is_none());
+
+        unsafe {
+            if let Some(value) = original_path {
+                std::env::set_var("PATH", value);
+            } else {
+                std::env::remove_var("PATH");
+            }
+            if let Some(value) = original_player {
+                std::env::set_var(crate::player::ENV_MOVIEBOX_PLAYER, value);
+            } else {
+                std::env::remove_var(crate::player::ENV_MOVIEBOX_PLAYER);
+            }
+        }
+        let _ = std::fs::remove_dir_all(test_path);
     }
 
     #[tokio::test]
