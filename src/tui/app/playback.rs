@@ -953,7 +953,7 @@ impl App {
                         return None;
                     };
                     let max_height = Some(release.resolution_u64()).filter(|&h| h > 0);
-                    let direct_source = crate::providers::models::PlaybackSource {
+                    let mut direct_source = crate::providers::models::PlaybackSource {
                         provider: release.provider,
                         url: first_mirror.resolver_url.clone(),
                         headers: first_mirror.headers.clone(),
@@ -963,6 +963,18 @@ impl App {
                     };
                     let subject_id = self.state.active_subject_id.clone().unwrap_or_default();
                     let resource_id = self.get_selected_resource_id();
+
+                    // MovieBox links are signed and time limited, so refresh
+                    // the URL right before it is handed to the player.
+                    if release.provider == crate::providers::models::ProviderKind::MovieBox {
+                        if let Some(rid) = release.resource_id.as_deref() {
+                            if let Some(fresh) =
+                                self.service.refresh_moviebox_source(&subject_id, rid).await
+                            {
+                                direct_source = fresh;
+                            }
+                        }
+                    }
 
                     if let Some(rid) = resource_id {
                         self.state.notify(

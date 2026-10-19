@@ -82,6 +82,13 @@ fn parse_provider(value: &str) -> Result<ProviderKind, String> {
 pub struct Bridge {
     runtime: tokio::runtime::Runtime,
     service: MovieBoxService,
+    /// Maps a provider resource id to the subject it was listed under.
+    ///
+    /// MovieBox stream links are signed and time limited, so the URL handed
+    /// to the player has to be refreshed right before playback. The refresh
+    /// needs the subject id, which the Kotlin side does not send back, so the
+    /// bridge remembers it from the listing call.
+    subjects: std::sync::Mutex<std::collections::HashMap<String, String>>,
 }
 
 impl Bridge {
@@ -97,7 +104,33 @@ impl Bridge {
         moviebox_tui::logging::init();
 
         let service = MovieBoxService::new();
-        Self { runtime, service }
+        Self {
+            runtime,
+            service,
+            subjects: std::sync::Mutex::new(std::collections::HashMap::new()),
+        }
+    }
+
+    /// Remembers which subject every listed resource id belongs to.
+    fn remember_subject(&self, subject_id: &str, releases: &[Release]) {
+        let mut guard = match self.subjects.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        for release in releases {
+            if let Some(resource_id) = release.resource_id.as_deref() {
+                guard.insert(resource_id.to_string(), subject_id.to_string());
+            }
+        }
+    }
+
+    /// Returns the subject id a resource id was listed under, if known.
+    fn subject_for(&self, resource_id: &str) -> Option<String> {
+        let guard = match self.subjects.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        guard.get(resource_id).cloned()
     }
 
     /// Lists the providers together with their capabilities.
@@ -168,6 +201,7 @@ impl Bridge {
             .runtime
             .block_on(self.fetch_releases(provider, subject_id, season, episode))
             .map_err(|err| err.to_string())?;
+        self.remember_subject(subject_id, &releases);
         Ok(json!({ "releases": releases }))
     }
 
@@ -246,6 +280,18 @@ impl Bridge {
             ProviderKind::Addons => {
                 moviebox_tui::providers::addons::release_to_playback_source(&release)
                     .ok_or_else(|| "no playable stream in this release".to_string())?
+            }
+            ProviderKind::MovieBox => {
+                // The listed link is signed and time limited, so refresh it
+                // right before the player picks it up.
+                let refreshed = release.resource_id.as_deref().and_then(|resource_id| {
+                    let subject_id = self.subject_for(resource_id)?;
+                    self.runtime.block_on(
+                        self.service
+                            .refresh_moviebox_source(&subject_id, resource_id),
+                    )
+                });
+                refreshed.unwrap_or(direct_source(&release)?)
             }
             _ => direct_source(&release)?,
         };
