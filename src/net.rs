@@ -1,29 +1,40 @@
+#[cfg(not(target_os = "android"))]
 use std::net::SocketAddr;
+#[cfg(not(target_os = "android"))]
 use std::sync::Arc;
 
+#[cfg(not(target_os = "android"))]
 use hickory_resolver::TokioResolver;
+#[cfg(not(target_os = "android"))]
 use hickory_resolver::config::{
     CLOUDFLARE_IPS, GOOGLE_IPS, LookupIpStrategy, NameServerConfigGroup, QUAD9_IPS, ResolverConfig,
 };
+#[cfg(not(target_os = "android"))]
 use hickory_resolver::name_server::TokioConnectionProvider;
+#[cfg(not(target_os = "android"))]
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 
+#[cfg(not(target_os = "android"))]
 const FALLBACK_DNS_PORT: u16 = 53;
 pub const DEFAULT_BROWSER_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 pub const APP_HTTP_USER_AGENT: &str = concat!("MovieBox-Tui/", env!("CARGO_PKG_VERSION"));
 
+#[cfg(not(target_os = "android"))]
 static GLOBAL_RESOLVER: std::sync::LazyLock<Arc<TokioResolver>> =
     std::sync::LazyLock::new(|| Arc::new(build_resolver()));
 
+#[cfg(not(target_os = "android"))]
 #[derive(Debug, Default, Clone)]
 pub struct FallbackResolver;
 
+#[cfg(not(target_os = "android"))]
 impl FallbackResolver {
     pub fn new() -> Self {
         Self
     }
 }
 
+#[cfg(not(target_os = "android"))]
 fn fallback_servers() -> Vec<std::net::IpAddr> {
     let mut servers = Vec::with_capacity(CLOUDFLARE_IPS.len() + GOOGLE_IPS.len() + QUAD9_IPS.len());
     servers.extend_from_slice(CLOUDFLARE_IPS);
@@ -32,6 +43,7 @@ fn fallback_servers() -> Vec<std::net::IpAddr> {
     servers
 }
 
+#[cfg(not(target_os = "android"))]
 fn fallback_config() -> ResolverConfig {
     ResolverConfig::from_parts(
         None,
@@ -40,6 +52,7 @@ fn fallback_config() -> ResolverConfig {
     )
 }
 
+#[cfg(not(target_os = "android"))]
 fn build_resolver() -> TokioResolver {
     let mut builder = match TokioResolver::builder_tokio() {
         Ok(builder) => builder,
@@ -57,6 +70,7 @@ fn build_resolver() -> TokioResolver {
     builder.build()
 }
 
+#[cfg(not(target_os = "android"))]
 impl Resolve for FallbackResolver {
     fn resolve(&self, name: Name) -> Resolving {
         let resolver = Arc::clone(&GLOBAL_RESOLVER);
@@ -73,13 +87,21 @@ impl Resolve for FallbackResolver {
 }
 
 pub fn http_client_builder_base() -> reqwest::ClientBuilder {
-    reqwest::Client::builder()
-        .dns_resolver(Arc::new(FallbackResolver::new()))
+    let builder = reqwest::Client::builder()
         .tcp_nodelay(true)
         .tcp_keepalive(Some(std::time::Duration::from_secs(45)))
         .pool_idle_timeout(Some(std::time::Duration::from_secs(90)))
         .pool_max_idle_per_host(8)
-        .connect_timeout(std::time::Duration::from_secs(15))
+        .connect_timeout(std::time::Duration::from_secs(15));
+
+    // On Android the system resolver is provided by `netd` and is the only
+    // path that honours the device DNS configuration (and VPNs), so the
+    // host resolver is kept. Everywhere else the bundled public DNS fallback
+    // is used because `/etc/resolv.conf` is not always usable.
+    #[cfg(not(target_os = "android"))]
+    let builder = builder.dns_resolver(Arc::new(FallbackResolver::new()));
+
+    builder
 }
 
 pub fn http_client_builder() -> reqwest::ClientBuilder {

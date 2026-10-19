@@ -4,6 +4,34 @@ MovieBox-Tui is a terminal client (ratatui + crossterm + tokio) for streaming mo
 series and TV channels from multiple providers. This document describes the shape of the
 code and how data flows through it.
 
+## Crate layers
+
+The crate is split in two layers so that non-terminal frontends can reuse the engine:
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│ Core (always compiled)                                      │
+│   cache · config · download · favorites · history · logging  │
+│   models · net · providers · service · util                  │
+└──────────────────────────────────────────────────────────────┘
+        ▲                                   ▲
+        │ depends on (default-features=false)│
+┌───────────────────────┐        ┌──────────────────────────────┐
+│ Terminal frontend     │        │ Android bridge               │
+│ `tui` feature         │        │ crates/moviebox-android      │
+│ tui · player · proxy  │        │ (cdylib, JNI, JSON payloads)  │
+│ updater               │        │                              │
+└───────────────────────┘        └──────────────────────────────┘
+```
+
+- The **core** has no terminal, OS or UI dependency. Helpers that used to live in
+  `tui/text.rs` but were needed by the engine (duration parsing, language labels, header
+  forwarding rules) now live in `src/util.rs`.
+- The **terminal frontend** is behind the `tui` Cargo feature, which is enabled by
+  default. `cargo build --no-default-features` produces a headless engine.
+- The **Android bridge** is a separate `cdylib` crate that depends on the engine with
+  `default-features = false` and exposes it over JNI. See [android.md](android.md).
+
 ## System Architecture & Data Flow
 
 ```text
@@ -50,11 +78,11 @@ src/
 │   ├── service.rs                 # Central multi-provider facade & aggregation engine
 │   ├── net.rs                     # Hickory DNS fallback resolver & HTTP client builders
 │   ├── logging.rs                 # Rotating file logger with path/URL privacy sanitization
-│   └── proxy.rs                   # Detached loopback HTTP proxy & DASH manifest rewriter
+│   ├── util.rs                    # Shared helpers: durations, language labels, header rules
+│   └── config.rs                  # User configuration schema & atomic persistence (config.json)
 │
 ├── Storage & Persistence
 │   ├── cache.rs                   # Binary MessagePack cache (MBC1 header) with atomic writes
-│   ├── config.rs                  # User configuration schema & atomic persistence (config.json)
 │   ├── favorites.rs               # Bookmark storage & deduplication (favorites.json)
 │   ├── history.rs                 # Watch progress, latched resume, & state reconciliation
 │   └── download.rs                # Chunked multi-segment downloader with HTTP range resume
@@ -73,6 +101,9 @@ src/
 │   ├── player.rs                  # Player detection (mpv, IINA, VLC, Android) & command builder
 │   └── player/tracker.rs          # Embedded Lua tracker script (moviebox_tracker.lua)
 │
+├── Loopback Proxy (`src/proxy.rs`)
+│                                   # Detached loopback HTTP proxy & DASH manifest rewriter
+│
 ├── Self-Updater (`src/updater/`)
 │   ├── check.rs                   # GitHub release API version checker
 │   ├── download.rs                # Streaming release archive downloader
@@ -80,7 +111,7 @@ src/
 │   ├── extract.rs                 # Tar.gz and Zip extractor with path traversal guard
 │   └── apply.rs                   # Atomic binary replacement, path resolution, & restart helper
 │
-└── Presentation & TUI (`src/tui/`)
+└── Presentation & TUI (`src/tui/`) — `tui` feature only
     ├── action.rs                  # Unified Action enum message bus
     ├── event.rs                   # Crossterm terminal input event listener & tick driver
     ├── state.rs                   # Centralized AppState & LRU memory caches

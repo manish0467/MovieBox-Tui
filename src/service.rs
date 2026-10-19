@@ -270,15 +270,15 @@ impl MovieBoxService {
         let mut deduplicated: Vec<crate::providers::models::SubtitleOption> = Vec::new();
         let mut seen_languages = std::collections::HashSet::new();
         for sub in all_captions {
-            let sanitized_lang = crate::tui::text::sanitize_language_label(&sub.name);
+            let sanitized_lang = crate::util::sanitize_language_label(&sub.name);
             if seen_languages.insert(sanitized_lang) {
                 deduplicated.push(sub);
             }
         }
 
         deduplicated.sort_by(|a, b| {
-            let clean_a = crate::tui::text::sanitize_language_label(&a.name);
-            let clean_b = crate::tui::text::sanitize_language_label(&b.name);
+            let clean_a = crate::util::sanitize_language_label(&a.name);
+            let clean_b = crate::util::sanitize_language_label(&b.name);
             if clean_a.eq_ignore_ascii_case("english") {
                 std::cmp::Ordering::Less
             } else if clean_b.eq_ignore_ascii_case("english") {
@@ -377,14 +377,14 @@ impl MovieBoxService {
         preferred_filename: Option<&str>,
     ) -> Result<PathBuf, String> {
         let mut request = self.http_client.get(url);
-        let sub_host = crate::proxy::extract_host_authority(url);
+        let sub_host = crate::util::extract_host_authority(url);
         let referer_host = headers
             .iter()
             .find(|(name, _)| name.eq_ignore_ascii_case("referer"))
-            .and_then(|(_, val)| crate::proxy::extract_host_authority(val));
+            .and_then(|(_, val)| crate::util::extract_host_authority(val));
         let same_host = sub_host.is_some() && sub_host == referer_host;
         for (name, value) in headers {
-            if crate::proxy::should_forward_header(same_host, name) {
+            if crate::util::should_forward_header(same_host, name) {
                 request = request.header(name.as_str(), value.as_str());
             }
         }

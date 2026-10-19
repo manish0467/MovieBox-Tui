@@ -8,8 +8,15 @@ responsibility.
 src/
   main.rs            Entry point. Logging init, panic hook, raw mode, alternate
                      screen, TerminalGuard, App::new + App::run.
-  lib.rs             Crate root: declares pub mod cache/config/download/favorites/
-                     history/logging/models/net/player/providers/proxy/service/tui/updater.
+                     Requires the `tui` feature.
+  lib.rs             Crate root: declares the core modules (cache/config/download/
+                     favorites/history/logging/models/net/providers/service/util)
+                     and, behind the `tui` feature, the terminal modules
+                     (player/proxy/tui/updater).
+
+  util.rs            Platform-agnostic helpers shared by the core and every
+                     frontend: duration parsing/formatting, canonical language
+                     labels, host authority extraction and header forwarding rules.
 
   cache.rs           Disk cache: provider-namespaced directories, TTL expiry,
                      atomic temp-file writes, payload validation, background purge.
@@ -133,7 +140,20 @@ src/
                      theme/status/updates.
     tv.rs            handle_tv: playlist manager + TV actions.
     addons.rs        handle_addons: addon manager + HTTP addon actions.
+
+crates/moviebox-android/
+  Cargo.toml         cdylib crate: depends on the root crate with
+                     `default-features = false` (no ratatui/crossterm).
+  src/lib.rs        JNI entry points (`Java_com_moviebox_app_core_NativeBridge_*`).
+                     Every call returns a JSON envelope.
+  src/api.rs        Bridge operations: providers, search, details, episode
+                     streams, playback resolution, subtitles, favorites, history.
 ```
+
+The `tui`, `player`, `proxy` and `updater` modules are compiled only when the
+`tui` Cargo feature is enabled (default). The Android build depends on the
+crate with `default-features = false`, so the shared library never links the
+terminal frontend.
 
 See [architecture.md](architecture.md) for the event loop, async model and data flow,
 and the per-topic docs for details.

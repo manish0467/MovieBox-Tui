@@ -271,21 +271,7 @@ pub async fn run_sidecar(
     }
 }
 
-pub(crate) fn extract_host_authority(url: &str) -> Option<String> {
-    let after_scheme = url
-        .strip_prefix("https://")
-        .or_else(|| url.strip_prefix("http://"))?;
-    let authority = after_scheme.split('/').next()?;
-    if authority.is_empty() {
-        None
-    } else {
-        Some(authority.to_string())
-    }
-}
-
-pub(crate) fn should_forward_header(forward_all: bool, name: &str) -> bool {
-    forward_all || name.eq_ignore_ascii_case("user-agent") || name.eq_ignore_ascii_case("referer")
-}
+pub(crate) use crate::util::{extract_host_authority, should_forward_header};
 
 async fn handle_connection(
     stream: TcpStream,

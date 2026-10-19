@@ -1,0 +1,164 @@
+# Android App
+
+MovieBox ships a native Android application that reuses the Rust core engine
+and replaces the terminal UI with Jetpack Compose and Media3 (ExoPlayer).
+
+```text
+┌─────────────────────────────┐        ┌──────────────────────────────┐
+│  Android app (Kotlin)       │  JNI   │  libmoviebox_android.so      │
+│  ─────────────────────────  │◀──────▶│  ────────────────────────────│
+│  • Compose UI               │        │  • providers / scrapers      │
+│  • Media3 ExoPlayer         │  JSON  │  • aggregation service       │
+│  • Coil (posters)           │◀──────▶│  • cache / history / favs    │
+│  • kotlinx.serialization    │        │  • header + DASH resolution  │
+└─────────────────────────────┘        └──────────────────────────────┘
+```
+
+The Rust side is the single source of truth for provider behaviour: the
+CloudFront token signing, the HTML parsers, the HubCloud mirror resolution and
+the BDIX heuristics are **not** reimplemented in Kotlin.
+
+## Repository layout
+
+| Path | Purpose |
+| :--- | :--- |
+| `src/` (root crate) | Core engine + terminal frontend. The terminal frontend is behind the `tui` Cargo feature. |
+| `src/util.rs` | Shared, platform-agnostic helpers (duration parsing, language labels, header rules). |
+| `crates/moviebox-android/` | The JNI bridge (`cdylib`) that the Android app links against. |
+| `android/` | Gradle project, Compose UI, Media3 player. |
+
+The core crate is split by feature so the Android `.so` never links `ratatui`,
+`crossterm` or the self-updater:
+
+```bash
+# Terminal app (default)
+cargo build --release
+
+# Headless core only (what Android links)
+cargo build --release --no-default-features
+```
+
+## Prerequisites
+
+- JDK 17 or 21 (JDK 27 is not supported by AGP 8.7 / Gradle 8.11)
+- Android SDK with platform `android-35` and build-tools `35.0.0`
+- Android NDK r26 or newer (verified with r27c) — `sdkmanager "ndk;27.2.12479018"`
+- Rust toolchain with the Android target: `rustup target add aarch64-linux-android`
+- [`cargo-ndk`](https://github.com/rust-android/cargo-ndk): `cargo install cargo-ndk`
+
+## Building
+
+1. Build the Rust library into `jniLibs`:
+
+   ```bash
+   cd crates/moviebox-android
+   cargo ndk -t arm64-v8a -o ../../android/app/src/main/jniLibs build --release
+   ```
+
+   The result is `android/app/src/main/jniLibs/arm64-v8a/libmoviebox_android.so`
+   (≈ 5.8 MB stripped).
+
+   Without `cargo-ndk` the NDK toolchain can be used directly:
+
+   ```bash
+   NDK=$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64
+   export CC_aarch64_linux_android=$NDK/bin/aarch64-linux-android24-clang
+   export AR_aarch64_linux_android=$NDK/bin/llvm-ar
+   export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$NDK/bin/aarch64-linux-android24-clang
+   cargo build -p moviebox-android --target aarch64-linux-android --release
+   cp target/aarch64-linux-android/release/libmoviebox_android.so \
+      android/app/src/main/jniLibs/arm64-v8a/
+   ```
+
+2. Build the APK:
+
+   ```bash
+   cd android
+   ./gradlew assembleDebug
+   ```
+
+   The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`
+   (≈ 27 MB with the unstripped debug DEX).
+
+   The Gradle build can also drive the Rust build directly:
+
+   ```bash
+   ./gradlew assembleDebug -PmovieboxBuildRust=true
+   ```
+
+3. Install on a device:
+
+   ```bash
+   adb install -r app/build/outputs/apk/debug/app-debug.apk
+   ```
+
+## The JNI surface
+
+`com.moviebox.app.core.NativeBridge` mirrors `crates/moviebox-android/src/lib.rs`.
+Every function returns a JSON envelope:
+
+```json
+{ "ok": true,  "data": { "items": [] } }
+{ "ok": false, "error": "All hosts exhausted" }
+```
+
+| Function | Purpose |
+| :--- | :--- |
+| `nativeInit(configDir, dataDir, cacheDir)` | Points the core at the app-private directories (Android has no XDG dirs). |
+| `nativeProviders()` | Provider list with capability flags. |
+| `nativeSearch(provider, query, page)` | Catalog search for one provider. |
+| `nativeSuggest(query)` | Search-as-you-type suggestions. |
+| `nativeHomepage(tabId, page)` | MovieBox home deck. |
+| `nativeDetails(provider, subjectId)` | Full metadata, seasons and episodes. |
+| `nativeEpisodeStreams(provider, subjectId, season, episode)` | Releases (mirrors, quality, size). |
+| `nativeResolvePlayback(provider, releaseJson)` | Turns a release into `{url, headers, subtitle, maxHeight}`. |
+| `nativeSubtitles(...)` | Subtitle tracks for the selected resource. |
+| `nativeFavorites()` / `nativeToggleFavorite(itemJson)` | Favorites library. |
+| `nativeHistory()` | Watch history. |
+| `nativePosterUrlHeaders(url)` | Headers the image loader must send for posters. |
+
+The `headers` field of a playback source is **not** optional for most
+providers: CloudFront signed cookies, `Referer` and `User-Agent` have to be
+replayed. The Kotlin player applies them through
+`DefaultHttpDataSource.Factory#setDefaultRequestProperties`.
+
+## Feature parity
+
+| Feature | Terminal | Android |
+| :--- | :--- | :--- |
+| Search across providers | ✅ | ✅ |
+| Details, seasons, episodes | ✅ | ✅ |
+| Source list with quality | ✅ | ✅ |
+| Playback (headers, subtitles) | ✅ | ✅ (Media3) |
+| Poster art | ✅ (Kitty/Sixel) | ✅ (Coil) |
+| Favorites | ✅ | ✅ |
+| Watch history | ✅ | ✅ |
+| Batch downloads | ✅ | ⏳ planned |
+| Live TV / M3U | ✅ | ⏳ planned |
+| Stremio addons | ✅ | ⏳ planned |
+| Self-update | ✅ | ⏳ Play / sideload |
+
+## Distribution
+
+The catalog aggregates third-party providers, so a Play Store release is
+unlikely to be accepted under the current content policies. Sideloading
+(GitHub Releases), F-Droid or a dedicated store is the realistic channel.
+That also removes the need for the self-updater: the Android build ships the
+Rust library inside the APK and updates through the app store.
+
+## Verified build
+
+The following was reproduced on this repository:
+
+| Step | Result |
+| :--- | :--- |
+| `cargo build --no-default-features` | ✅ headless core, no terminal deps |
+| `cargo build -p moviebox-android --target aarch64-linux-android --release` | ✅ `libmoviebox_android.so` (5.8 MB, 13 JNI symbols) |
+| `./gradlew assembleDebug` | ✅ `app-debug.apk` (26.9 MB) |
+| `./gradlew assembleRelease` | ✅ `app-release-unsigned.apk` (8.2 MB, R8 + resource shrinking) |
+
+## Privacy
+
+Same as the terminal client: zero telemetry. The core writes only to the
+app-private `files/` and `cache/` directories, which the app passes to
+`nativeInit`.

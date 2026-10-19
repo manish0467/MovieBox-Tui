@@ -72,6 +72,12 @@ curl -fsSL https://raw.githubusercontent.com/mesamirh/MovieBox-Tui/main/install.
 termux-setup-storage
 ```
 
+### Android (native app)
+
+A native Android application (Jetpack Compose + Media3) is built on top of the
+same Rust core engine. See [docs/android.md](docs/android.md) for the build
+instructions.
+
 <details>
 <summary><b>Cargo & Source Build</b></summary>
 
@@ -134,6 +140,7 @@ Full documentation at [**mesamirh.github.io/MovieBox-Tui**](https://mesamirh.git
 | [Hardware Players](docs/players.md) | Player detection, launch options, and flags |
 | [Live TV & IPTV](docs/tv-mode.md) | M3U playlist import and channel streaming |
 | [Batch Downloads](docs/downloads.md) | HTTP range engine, pause, and resume |
+| [Android App](docs/android.md) | Native Compose app, JNI bridge, and build steps |
 
 ## Contributing
 

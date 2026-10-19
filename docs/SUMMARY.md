@@ -7,6 +7,7 @@
 - [Installation](installation.md)
 - [Keyboard & Controls](controls.md)
 - [Configuration Guide](config.md)
+- [Android App](android.md)
 
 # Features & Modes
 

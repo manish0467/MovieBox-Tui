@@ -30,6 +30,16 @@ To test playback and download features locally, install `mpv` (see [Media Player
 The app is message-driven and organized into focused modules. Full maps live in
 [`docs/architecture.md`](docs/architecture.md) and [`docs/modules.md`](docs/modules.md).
 
+> **Coding agents:** read [`AGENTS.md`](AGENTS.md) first. It documents the architecture
+> invariants, the verified build/test commands and the traps that break CI. The
+> agent-specific files (`CLAUDE.md`, `GEMINI.md`, `CONVENTIONS.md`, `.cursorrules`,
+> `.cursor/rules/`, `.github/copilot-instructions.md`, `.windsurfrules`, `QWEN.md`) all
+> point back to it, so switching agents changes nothing.
+>
+> Antigravity (`agy`) reads `AGENTS.md` natively and additionally picks up the scoped
+> rules in [`.agents/rules/`](.agents/rules) (frontmatter-activated, one area each) and
+> the workflow skill in [`.agents/skills/`](.agents/skills).
+
 Short version:
 
 - `src/tui/app/`: The application object (`App`). `run.rs` holds the thin

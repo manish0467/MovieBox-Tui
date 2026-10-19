@@ -90,3 +90,38 @@ jobs:
         run: cargo nextest run --all-features --locked
       - name: Smoke-test binary startup
         run: cargo run --all-features --locked -- --version
+
+  android-bridge:
+    name: Android bridge (aarch64-linux-android)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.90.0
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "ci-android-bridge"
+      - name: Install the Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+      - name: Cross-compile the JNI bridge
+        run: |
+          export ANDROID_NDK_HOME=$ANDROID_NDK_ROOT
+          export TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
+          export CC_aarch64_linux_android=$TOOLCHAIN/bin/aarch64-linux-android24-clang
+          export AR_aarch64_linux_android=$TOOLCHAIN/bin/llvm-ar
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$TOOLCHAIN/bin/aarch64-linux-android24-clang
+          cargo build -p moviebox-android --target aarch64-linux-android --release --locked
+      - name: Verify the shared library exports the JNI entry points
+        run: |
+          SO=target/aarch64-linux-android/release/libmoviebox_android.so
+          test -f "$SO"
+          for symbol in nativeInit nativeSearch nativeDetails nativeEpisodeStreams nativeResolvePlayback; do
+            nm -D --defined-only "$SO" | grep -q "Java_com_moviebox_app_core_NativeBridge_${symbol}"
+          done
+      - name: Verify the headless core builds without the terminal frontend
+        run: cargo build --no-default-features --locked

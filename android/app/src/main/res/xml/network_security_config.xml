@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MovieBox streams are served by CDNs that still use plain HTTP for some
+  providers (BDIX mirrors, direct MP4 links), so cleartext has to stay
+  enabled for those hosts.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

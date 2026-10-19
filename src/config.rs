@@ -84,9 +84,38 @@ pub fn is_termux_environment() -> bool {
         || std::path::Path::new(TERMUX_PREFIX_USR).exists()
 }
 
+/// Explicit directory overrides for platforms without XDG-style directories
+/// (Android, iOS, sandboxed hosts). Set once at startup by the host app.
+#[derive(Debug, Clone, Default)]
+pub struct DirOverrides {
+    pub config: Option<PathBuf>,
+    pub data: Option<PathBuf>,
+    pub cache: Option<PathBuf>,
+}
+
+static DIR_OVERRIDES: std::sync::OnceLock<DirOverrides> = std::sync::OnceLock::new();
+
+/// Installs the directory overrides used by [`config_dir`], [`data_dir`] and
+/// [`cache_dir`]. Only the first call takes effect.
+pub fn set_dir_overrides(overrides: DirOverrides) {
+    let _ = DIR_OVERRIDES.set(overrides);
+}
+
+/// Returns the currently installed directory overrides, if any.
+pub fn dir_overrides() -> Option<&'static DirOverrides> {
+    DIR_OVERRIDES.get()
+}
+
 pub fn config_dir() -> Option<PathBuf> {
     if let Some(sandbox) = TEST_SANDBOX_DIR.as_ref() {
         return Some(sandbox.join("config").join(APP_NAME));
+    }
+    if let Some(dir) = DIR_OVERRIDES
+        .get()
+        .and_then(|o| o.config.as_ref())
+        .filter(|p| !p.as_os_str().is_empty())
+    {
+        return Some(dir.clone());
     }
     if let Ok(dir) = std::env::var("MOVIEBOX_CONFIG_DIR") {
         return Some(PathBuf::from(dir));
@@ -121,6 +150,13 @@ pub fn data_dir() -> Option<PathBuf> {
     if let Some(sandbox) = TEST_SANDBOX_DIR.as_ref() {
         return Some(sandbox.join("data").join(APP_NAME));
     }
+    if let Some(dir) = DIR_OVERRIDES
+        .get()
+        .and_then(|o| o.data.as_ref())
+        .filter(|p| !p.as_os_str().is_empty())
+    {
+        return Some(dir.clone());
+    }
     if let Ok(dir) = std::env::var("MOVIEBOX_DATA_DIR") {
         return Some(PathBuf::from(dir));
     }
@@ -153,6 +189,13 @@ pub fn data_dir() -> Option<PathBuf> {
 pub fn cache_dir() -> PathBuf {
     if let Some(sandbox) = TEST_SANDBOX_DIR.as_ref() {
         return sandbox.join("cache").join(APP_NAME);
+    }
+    if let Some(dir) = DIR_OVERRIDES
+        .get()
+        .and_then(|o| o.cache.as_ref())
+        .filter(|p| !p.as_os_str().is_empty())
+    {
+        return dir.clone();
     }
     if let Ok(dir) = std::env::var("MOVIEBOX_CACHE_DIR") {
         return PathBuf::from(dir);
