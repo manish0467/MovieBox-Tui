@@ -4,6 +4,7 @@
 
 ### Fixed
 - **Hermetic Player Detection Tests**: Isolated Termux opener and playback selection tests from the host `PATH`, graphical-session variables, and `MOVIEBOX_PLAYER` setting.
+- **Test Suite Stability**: Removed two timing-dependent flakes. The HTTP probe fallback test now allows for a loaded runner, and the detached-process test waits until the child owns its session instead of signalling it during the `pre_exec` hook.
 - **Media Playback & Subtitle Engine**:
   - Restored MovieBox playback by resolving streams from the subject details `resourceDetectors` block. The upstream `play-info` endpoint answers with the site trailer instead of the media since 2026-10, which made every title fail with "No stream sources available"; the signed `*.hakunaymatata.com` links are now used instead and the `play-info` path is kept as a fallback.
   - Refreshed MovieBox stream links right before playback, because the `?sign=<token>&t=<expiry>` query is time limited and a listed link can expire before the player starts.
