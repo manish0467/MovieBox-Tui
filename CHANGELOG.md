@@ -18,6 +18,10 @@
   - Reset the download resolution state lock on 4KHDHub resolver timeouts and errors so failed mirror resolutions do not block subsequent download attempts.
   - Added sequential single-connection fallback to the internal HTTP downloader when multi-worker segmented range requests receive HTTP 403, 429, or network disconnects.
 ### Added
+- **Native Android App**:
+  - Added a native Android application (Jetpack Compose + Media3) built on the shared Rust core engine, with the core split behind a `tui` Cargo feature so the library never links the terminal frontend.
+  - Added a favorites library, a watch history and continue-watching deck, subtitle selection with in-player track switching, a resolution picker, provider switching and a home deck to the Android app.
+  - Added `nativeRecordWatchProgress` to the JNI bridge so the app records watch progress through the core instead of writing the history file itself.
 - **In-App Updater Lifecycle**:
   - Tracked target executable path before staging updates and resolved deleted inode suffixes (` (deleted)`) on Linux to restart the new binary automatically after popup self-update.
   - Scoped Snap package detection to `SNAP_NAME` matching `moviebox-tui` to prevent false positive Snap environment detection when launched inside unrelated host sandboxes.

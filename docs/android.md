@@ -115,6 +115,7 @@ Every function returns a JSON envelope:
 | `nativeSubtitles(...)` | Subtitle tracks for the selected resource. |
 | `nativeFavorites()` / `nativeToggleFavorite(itemJson)` | Favorites library. |
 | `nativeHistory()` | Watch history. |
+| `nativeRecordWatchProgress(itemJson)` | Records watch progress into `history.json`. |
 | `nativePosterUrlHeaders(url)` | Headers the image loader must send for posters. |
 
 The `headers` field of a playback source is **not** optional for most
