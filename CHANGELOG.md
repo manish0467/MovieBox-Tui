@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **Android App Playback**: Fixed two device-only playback failures. The bridge rejected the release payload the app sends back because the app omits fields that are unset, and the CDN answers `429` when a `Referer` header is sent, so the mirrors now carry the MovieBox user agent only. The subtitle track is also served through the default data source so a local file is no longer handed to the HTTP data source.
 - **Hermetic Player Detection Tests**: Isolated Termux opener and playback selection tests from the host `PATH`, graphical-session variables, and `MOVIEBOX_PLAYER` setting.
 - **Test Suite Stability**: Removed two timing-dependent flakes. The HTTP probe fallback test now allows for a loaded runner, and the detached-process test waits until the child owns its session instead of signalling it during the `pre_exec` hook.
 - **Media Playback & Subtitle Engine**:

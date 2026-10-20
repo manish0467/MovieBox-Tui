@@ -186,9 +186,28 @@ The following was reproduced on this repository:
 | Step | Result |
 | :--- | :--- |
 | `cargo build --no-default-features` | ✅ headless core, no terminal deps |
-| `cargo build -p moviebox-android --target aarch64-linux-android --release` | ✅ `libmoviebox_android.so` (5.8 MB, 13 JNI symbols) |
+| `cargo build -p moviebox-android --target aarch64-linux-android --release` | ✅ `libmoviebox_android.so` (5.8 MB, 14 JNI symbols) |
 | `./gradlew assembleDebug` | ✅ `app-debug.apk` (26.9 MB) |
 | `./gradlew assembleRelease` | ✅ `app-release-unsigned.apk` (8.2 MB, R8 + resource shrinking) |
+
+## Verified on a device
+
+The app was installed on an Android 15 (API 35) x86_64 emulator and driven
+end to end:
+
+| Step | Result |
+| :--- | :--- |
+| Launch | ✅ no crash, the Rust library loads and the core logs a session start |
+| Home deck | ✅ posters and tabs from `nativeHomepage` |
+| Search | ✅ live results with poster art |
+| Details | ✅ metadata, subtitle picker, source list with the real resolutions |
+| Sources | ✅ `Dune [Hindi]-1080P · adilessa · 1080p · h264` from the detector links |
+| Playback | ✅ the H.264 decoder renders the stream from the CDN |
+| Watch progress | ✅ `history.json` is written through `nativeRecordWatchProgress` |
+
+Two bugs were only reproducible on a device and are fixed: the bridge
+rejected the release payload the app sends back (the app omits fields that
+are unset), and the CDN answers `429` when a `Referer` header is sent.
 
 ## Privacy
 
