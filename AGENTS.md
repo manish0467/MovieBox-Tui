@@ -118,10 +118,11 @@ Pre-commit hook (enable once with `git config core.hooksPath .githooks`): runs
 4. **Provider contract.** Providers implement `Provider` / `ReleaseProvider` from
    `src/providers/models.rs`. Domain models are `serde` `Serialize`/`Deserialize` — the
    wire format is shared with the Android app, so field names and optionality are API.
-5. **Stream auth headers are mandatory.** `User-Agent`, `Referer` and the CloudFront
-   cookie must be replayed on every stream request (see `src/proxy.rs`,
-   `src/player.rs`, and the Android `DefaultHttpDataSource`). Dropping them yields 403s
-   and "unplayable" streams.
+5. **Stream auth headers are mandatory, and the set depends on the CDN.** The
+   `*.hakunaymatata.com` links behind the MovieBox detector want the MovieBox app
+   user agent and answer `429` when a `Referer` is sent; the signed manifest hosts
+   want the `Referer` and the CloudFront cookie. Dropping a header that a host
+   expects yields 403s, 428s or 429s and an "unplayable" stream.
 6. **No panics** on network or user-input paths. Return errors instead.
 7. **Zero telemetry.** All state stays on local disk.
 8. Core code must not depend on the terminal. Anything the core needs lives in
@@ -150,6 +151,17 @@ Pre-commit hook (enable once with `git config core.hooksPath .githooks`): runs
   `-PmovieboxBuildRust=true` makes Gradle drive cargo for you.
 - `android/app/src/main/jniLibs/` is generated — never commit it.
 
+## Repository remotes and upstream
+
+- `origin` is the fork (`Alenbosh/Box`), `upstream` is the original project
+  (`mesamirh/MovieBox-Tui`).
+- Fixes for the terminal client belong in a focused branch that can be opened as
+  a pull request against `upstream`. That branch must **not** contain the Android
+  app, the agent files or any other unrelated work — a small reviewable diff is
+  the whole point.
+- The Android app is distributed as an APK from a GitHub release on the fork; it
+  is not published to crates.io.
+
 ## Style, commits and scope
 
 - Follow idiomatic Rust and `rustfmt` defaults. Do not hand-format.
@@ -164,24 +176,22 @@ Pre-commit hook (enable once with `git config core.hooksPath .githooks`): runs
 - `CHANGELOG.md` has an `## [Unreleased]` section — add entries under
   `### Added` / `### Changed` / `### Fixed`.
 
-## Known environment-dependent test failures
+## Test hygiene
 
-Four tests fail on machines that have `mpv`/`vlc` installed, because they assume an
-Android/Termux environment:
+The player detection tests used to fail on any machine that has `mpv`/`vlc`
+installed, because they assumed a Termux environment. They now inject fixture
+openers and restore the environment afterwards, and the two timing-dependent
+flakes (the HTTP probe budget, the `SIGHUP` race in the detached-process test)
+are fixed as well.
 
-- `player::tests::test_android_intent_commands_fallback_order`
-- `player::tests::test_detect_prioritizes_android_intent_on_termux`
-- `player::tests::test_has_graphical_display_detection`
-- `tui::app::playback::tests::test_explicit_player_incompatible_does_not_launch_alternative`
-
-They fail identically on an unmodified checkout. **Do not "fix" them by weakening the
-assertions** — check the baseline (`git stash`) before touching them.
+When a test fails, check the baseline first (`git stash`) before changing it —
+and never fix a test by weakening its assertions.
 
 ## Before you say "done"
 
 ```bash
 cargo fmt --all -- --check
-cargo clippy --all-targets --all-features --locked -- -D warnings
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo test --workspace
 cargo build --no-default-features
 ```

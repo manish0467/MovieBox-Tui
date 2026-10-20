@@ -27,9 +27,10 @@ covers only the Android-specific workflow.
   `Java_com_moviebox_app_core_NativeBridge_<fn>`.
 - **Keep the JSON envelope.** Every call returns `{"ok":true,"data":…}` or
   `{"ok":false,"error":"…"}`. Kotlin decodes it in `MovieBoxRepository.kt`.
-- **Never drop the stream headers.** `User-Agent`, `Referer` and the CloudFront cookie
-  must be set on the ExoPlayer `DefaultHttpDataSource`; without them the CDN answers 403
-  and playback fails with "unplayable stream".
+- **Never drop the stream headers.** The headers the bridge returns must be applied to
+  the ExoPlayer data source. Which headers a source needs depends on the host: the
+  MovieBox detector links want the app user agent and answer 429 when a `Referer` is
+  sent, the signed manifest hosts want the `Referer` and the CloudFront cookie.
 - **Do not import `src/tui/` from the bridge.** The bridge depends on the engine with
   `default-features = false`.
 - **Do not re-enable the public-DNS fallback on Android.** `src/net.rs` uses the system

@@ -119,8 +119,10 @@ Every function returns a JSON envelope:
 | `nativePosterUrlHeaders(url)` | Headers the image loader must send for posters. |
 
 The `headers` field of a playback source is **not** optional for most
-providers: CloudFront signed cookies, `Referer` and `User-Agent` have to be
-replayed. The Kotlin player applies them through
+providers. Which headers a source needs depends on the host: the MovieBox
+detector links want the app user agent and answer `429` when a `Referer` is sent,
+while the signed manifest hosts want the `Referer` and the CloudFront cookie. The
+Kotlin player applies whatever the bridge returns through
 `DefaultHttpDataSource.Factory#setDefaultRequestProperties`.
 
 ## Features and Parity Details
@@ -136,7 +138,7 @@ replayed. The Kotlin player applies them through
 - Subtitle tracks are downloaded to local cache (`cacheDir/subtitles`) using the provider's request headers.
 - Attached to Media3 as `MediaItem.SubtitleConfiguration` with the proper MIME type (`TEXT_VTT` or `APPLICATION_SUBRIP`).
 - In-player subtitle picker allows switching subtitle tracks or turning subtitles off on the fly.
-- Mandatory stream headers (`User-Agent`, `Referer`, CloudFront cookies) are strictly preserved on all media requests.
+- Mandatory stream headers are strictly preserved on all media requests; the bridge decides which ones a host needs.
 
 ### 3. Resolution Picker
 - Multi-resolution releases in `DetailsScreen` can be filtered with resolution chips (`All`, `1080p`, `720p`, `480p`, etc.).

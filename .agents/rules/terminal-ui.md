@@ -33,9 +33,10 @@ helpers so the terminal code keeps its current import paths.
 ## Player launch
 
 - `src/player.rs` detects the player and builds the command; `src/proxy.rs` serves
-  authenticated CloudFront streams over localhost. The stream headers
-  (`User-Agent`, `Referer`, the CloudFront cookie) are mandatory — dropping them turns
-  a working source into a 403.
+  authenticated CloudFront streams over localhost. The stream headers are mandatory,
+  but which ones depend on the host: the signed manifest hosts want the `Referer`
+  and the CloudFront cookie, while the MovieBox detector links want the app user
+  agent and reject a `Referer` with 429.
 - On Termux the player is dispatched through Android intents (`termux-open` / `am`).
   Android-intent playback must keep forwarding `User-Agent`, `Referer` and subtitles.
 
