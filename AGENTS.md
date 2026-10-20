@@ -77,12 +77,19 @@ install.sh install.ps1 Formula/ bucket/   Distribution packaging
 cargo build                                  # terminal app (default features)
 cargo build --no-default-features             # headless core only (what Android links)
 cargo test --workspace                        # unit tests
-cargo nextest run --all-features              # CI parity (install cargo-nextest)
+cargo nextest run --workspace --all-features  # CI parity (install cargo-nextest)
 cargo fmt --all                              # format (rustfmt defaults)
-cargo clippy --all-targets --all-features --locked -- -D warnings
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo audit                                  # dependency audit
+cargo package --locked                        # publishes the root crate only
 mdbook build                                 # docs (copy CHANGELOG/CONTRIBUTING into docs/ first)
 ```
+
+The workspace has two members: the published crate and `crates/moviebox-android`
+(the JNI bridge). The bridge depends on the published crate **by path**, so it
+must never be packaged against the registry release — that is why
+`default-members` is only the root package. Use `--workspace` for check, clippy
+and test so the bridge is covered.
 
 Pre-commit hook (enable once with `git config core.hooksPath .githooks`): runs
 `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings` and
