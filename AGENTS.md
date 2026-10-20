@@ -147,7 +147,9 @@ Pre-commit hook (enable once with `git config core.hooksPath .githooks`): runs
 - **Cleartext HTTP** is enabled through `res/xml/network_security_config.xml` because
   BDIX mirrors serve plain HTTP.
 - **Build order:** build the `.so` first (`cargo ndk -t arm64-v8a -o
-  android/app/src/main/jniLibs build --release`), then `./gradlew assembleDebug`.
+  android/app/src/main/jniLibs build --release -p moviebox-android`), then
+  `./gradlew assembleDebug`. The package selection is a cargo argument, so it
+  goes *after* the cargo-ndk options.
   `-PmovieboxBuildRust=true` makes Gradle drive cargo for you.
 - `android/app/src/main/jniLibs/` is generated — never commit it.
 

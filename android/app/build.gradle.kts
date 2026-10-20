@@ -117,11 +117,13 @@ val buildRustLibrary by tasks.registering(Exec::class) {
     }
     commandLine(
         cargoNdk,
-        "-p", "moviebox-android",
         "-t", "arm64-v8a",
         "-o", file("src/main/jniLibs").absolutePath,
         "build",
         "--release",
+        // The package selection belongs to cargo, so it goes after the
+        // cargo-ndk options.
+        "-p", "moviebox-android",
     )
 }
 
