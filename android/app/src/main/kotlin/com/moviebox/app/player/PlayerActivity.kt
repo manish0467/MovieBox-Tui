@@ -50,6 +50,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -143,13 +144,17 @@ class PlayerActivity : ComponentActivity() {
             }
         }
 
-        // Apply mandatory HTTP headers (User-Agent, Referer, CloudFront cookies)
+        // Apply mandatory HTTP headers (User-Agent, Referer, CloudFront cookies).
+        // The factory is wrapped in a DefaultDataSource so that local files
+        // (the downloaded subtitle track) are served by the file data source
+        // instead of the HTTP one.
         val httpFactory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setDefaultRequestProperties(headersMap)
+        val dataSourceFactory = DefaultDataSource.Factory(this, httpFactory)
 
         val exoPlayer = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(httpFactory))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .build()
         player = exoPlayer
 
