@@ -6,6 +6,35 @@ MovieBox-TUI is available across macOS, Linux, Windows, and Android (Termux).
 
 ## macOS and Linux
 
+### Prebuilt binaries
+
+The current build is published as a GitHub release and works right now — no
+toolchain, no nightly Rust, nothing to compile:
+
+| Platform | File |
+| :--- | :--- |
+| Linux x64 | `MovieBox_Linux_x64.tar.gz` |
+| Linux arm64 | `MovieBox_Linux_arm64.tar.gz` |
+| macOS (Intel + Apple Silicon) | `MovieBox_macOS_Universal.tar.gz` |
+| Windows x64 | `MovieBox_Windows_x64.zip` |
+| Windows arm64 | `MovieBox_Windows_arm64.zip` |
+| Android (Termux) | `MovieBox_Android_arm64.tar.gz` |
+
+```bash
+gh release download v0.1.28 --repo Alenbosh/Box --pattern "MovieBox_Linux_x64.tar.gz"
+tar xzf MovieBox_Linux_x64.tar.gz
+./moviebox-tui          # the terminal client
+./moviebox-cli --help   # the headless CLI
+```
+
+Every archive ships `moviebox-tui`, `moviebox-cli` and the licences, plus a
+`SHA256SUMS` file for verification.
+
+The Android app is a separate APK: see [android.md](android.md).
+
+> The crates.io, Homebrew and Scoop packages are published from the upstream
+> project, so they can lag behind a release here by a few days.
+
 ### Homebrew (macOS)
 
 If you have [Homebrew](https://brew.sh/):

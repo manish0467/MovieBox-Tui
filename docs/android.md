@@ -197,6 +197,14 @@ Kotlin player applies whatever the bridge returns through
 - When on a provider supporting homepage (e.g., MovieBox), a home deck with tabs (Featured, Movies, Series) is loaded.
 - For search-only providers (4KHDHub, BDIX, Dramachi), quick category suggestion chips are shown.
 
+### 6. Background Downloads & Job Management
+- Backed by the download engine exposed through `nativeDownloadStart`, `nativeDownloadList`, `nativeDownloadCancel`, `nativeDownloadRemove`, and `nativeDownloadDirectory`.
+- Download buttons next to "Play" on every source row in `DetailsScreen` resolve the source URL and headers via `nativeResolvePlayback` before dispatching.
+- The **Downloads** bottom navigation tab displays live jobs with progress bars, transfer speeds (MB/s), downloaded/total sizes, and state chips (Running, Paused, Completed, Failed, Queued).
+- Active jobs are polled every second while the Downloads screen is visible and automatically stopped when leaving the screen.
+- Controls include Pause, Resume (which re-resolves fresh signed URLs and headers on expiry), Remove, and Open.
+- Finished downloads are indexed into the system media store via `MediaScannerConnection` and can be played directly with the native Media3 player.
+
 ## Feature parity
 
 | Feature | Terminal | Android |
@@ -210,7 +218,7 @@ Kotlin player applies whatever the bridge returns through
 | Watch history & continue watching | ✅ | ✅ |
 | Multi-resolution picker | ✅ | ✅ |
 | Provider switching & home deck | ✅ | ✅ |
-| Batch downloads | ✅ | ⏳ planned |
+| Downloads | ✅ | ✅ |
 | Live TV / M3U | ✅ | ⏳ planned |
 | Stremio addons | ✅ | ⏳ planned |
 | Self-update | ✅ | ⏳ Play / sideload |
@@ -221,7 +229,23 @@ The catalog aggregates third-party providers, so a Play Store release is
 unlikely to be accepted under the current content policies. Sideloading
 (GitHub Releases), F-Droid or a dedicated store is the realistic channel.
 That also removes the need for the self-updater: the Android build ships the
-Rust library inside the APK and updates through the app store.
+Rust library inside the APK and updates through the store.
+
+### The current build
+
+A signed-ready debug APK is published as a GitHub release and can be installed
+right now:
+
+```bash
+gh release download android-preview-1 --repo Alenbosh/Box --pattern "*.apk"
+adb install -r moviebox-android-preview.apk
+```
+
+or copy the APK to the phone and open it (allow "unknown sources"). It is a
+**debug** build, so it is debug-signed and cannot be installed over a release
+build; a signed release is the next step. The APK covers `arm64-v8a` (real
+devices) and `x86_64` (the emulator), needs Android 7 (API 24) or newer, and
+needs the INTERNET permission only.
 
 ## Verified build
 

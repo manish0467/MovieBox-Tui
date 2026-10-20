@@ -35,6 +35,21 @@
 
 ## Installation
 
+### Prebuilt binaries
+
+The current build works right now, without a toolchain:
+
+```bash
+gh release download v0.1.28 --repo Alenbosh/Box --pattern "MovieBox_Linux_x64.tar.gz"
+tar xzf MovieBox_Linux_x64.tar.gz
+./moviebox-tui          # the terminal client
+./moviebox-cli --help   # the headless CLI
+```
+
+macOS, Windows, Linux (x64 and arm64) and Android (Termux) archives are on the
+same release, together with a `SHA256SUMS` file. The native Android app is a
+separate APK — see [docs/android.md](docs/android.md).
+
 ### macOS & Linux
 
 If you have [Homebrew](https://brew.sh/) on macOS:
