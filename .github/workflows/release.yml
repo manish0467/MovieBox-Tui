@@ -136,6 +136,7 @@ jobs:
         run: |
           mkdir dist
           cp target/${{ matrix.target }}/release/moviebox-tui dist/
+          cp target/${{ matrix.target }}/release/moviebox-cli dist/
           cp README.md dist/
           cp LICENSE-* dist/ || true
 
@@ -152,6 +153,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item "target\${{ matrix.target }}\release\moviebox-tui.exe" "dist\"
+          Copy-Item "target\${{ matrix.target }}\release\moviebox-cli.exe" "dist\"
           Copy-Item "README.md" "dist\"
           $licenses = Get-ChildItem "LICENSE-*" -ErrorAction SilentlyContinue
           if ($licenses) {

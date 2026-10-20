@@ -187,6 +187,102 @@ impl MovieBoxService {
             .map_err(|e| e.to_string())
     }
 
+    /// The playable sources of a title or episode.
+    ///
+    /// Every provider that can produce sources implements
+    /// [`crate::providers::ReleaseProvider`]; the ones that cannot report an
+    /// error instead of returning an empty list.
+    pub async fn episode_streams(
+        &self,
+        provider: ProviderKind,
+        subject_id: &str,
+        season: usize,
+        episode: usize,
+    ) -> Result<Vec<crate::providers::models::Release>, String> {
+        let result = match provider {
+            ProviderKind::MovieBox => {
+                crate::providers::ReleaseProvider::episode_streams(
+                    &self.client,
+                    subject_id,
+                    season,
+                    episode,
+                )
+                .await
+            }
+            ProviderKind::FourKHdHub => match self.fourk_client.as_ref() {
+                Some(client) => {
+                    crate::providers::ReleaseProvider::episode_streams(
+                        client, subject_id, season, episode,
+                    )
+                    .await
+                }
+                None => Err(crate::providers::models::ProviderError::Unavailable(
+                    "4KHDHub is unavailable".to_string(),
+                )),
+            },
+            ProviderKind::BdixCircleFtp => {
+                crate::providers::ReleaseProvider::episode_streams(
+                    &self.circleftp_client,
+                    subject_id,
+                    season,
+                    episode,
+                )
+                .await
+            }
+            ProviderKind::BdixDhakaFlix => {
+                crate::providers::ReleaseProvider::episode_streams(
+                    &self.dhakaflix_client,
+                    subject_id,
+                    season,
+                    episode,
+                )
+                .await
+            }
+            ProviderKind::Dramachi => {
+                crate::providers::ReleaseProvider::episode_streams(
+                    &self.dramachi_client,
+                    subject_id,
+                    season,
+                    episode,
+                )
+                .await
+            }
+            ProviderKind::Addons => Err(crate::providers::models::ProviderError::Unavailable(
+                "Addons do not expose episode streams".to_string(),
+            )),
+        };
+        result.map_err(|error| error.to_string())
+    }
+
+    /// Resolves a release into a playable source.
+    ///
+    /// MovieBox links are signed and time limited, so they are refreshed
+    /// before they are handed out. Every other provider uses the mirror of the
+    /// release as it is.
+    pub async fn resolve_playback(
+        &self,
+        provider: ProviderKind,
+        subject_id: &str,
+        release: &crate::providers::models::Release,
+    ) -> Option<crate::providers::models::PlaybackSource> {
+        if provider == ProviderKind::MovieBox
+            && let Some(resource_id) = release.resource_id.as_deref()
+            && let Some(fresh) = self.refresh_moviebox_source(subject_id, resource_id).await
+        {
+            return Some(fresh);
+        }
+
+        let mirror = release.mirrors.first()?;
+        Some(crate::providers::models::PlaybackSource {
+            provider: release.provider,
+            url: mirror.resolver_url.clone(),
+            headers: mirror.headers.clone(),
+            subtitle: None,
+            source_label: mirror.label.clone(),
+            max_height: Some(release.resolution_u64()).filter(|height| *height > 0),
+        })
+    }
+
     /// Re-resolves a MovieBox release to a fresh signed URL.
     ///
     /// The detector links carry a `?sign=<token>&t=<expiry>` query, so a link

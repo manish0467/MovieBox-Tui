@@ -48,7 +48,6 @@ default = ["tui"]# The terminal frontend. Disable it to build a headless core li
 tui = [
     "dep:crossterm",
     "dep:flate2",
-    "dep:libc",
     "dep:lru",
     "dep:mimalloc",
     "dep:ratatui",
@@ -107,6 +106,12 @@ name = "moviebox-tui"
 path = "src/main.rs"
 required-features = ["tui"]
 
+# The headless CLI works without the terminal frontend, so it is built even
+# when the `tui` feature is off.
+[[bin]]
+name = "moviebox-cli"
+path = "src/bin/moviebox-cli.rs"
+
 [lints.clippy]
 collapsible_else_if = "allow"
 collapsible_if = "allow"
@@ -123,5 +128,5 @@ strip = true
 mimalloc = { version = "0.1.52", optional = true }
 
 [target.'cfg(unix)'.dependencies]
-libc = { version = "0.2", optional = true }
+libc = "0.2"
 

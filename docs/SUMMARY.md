@@ -8,6 +8,7 @@
 - [Keyboard & Controls](controls.md)
 - [Configuration Guide](config.md)
 - [Android App](android.md)
+- [Headless CLI](cli.md)
 
 # Features & Modes
 

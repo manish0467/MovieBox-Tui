@@ -125,6 +125,19 @@ moviebox-tui
 - Type to search, press `Enter` to play.
 - Press `?` for shortcuts, or type `/settings` for preferences.
 
+### Headless CLI
+
+`moviebox-cli` is the same engine without a terminal, for scripts and containers:
+
+```bash
+moviebox-cli providers
+moviebox-cli search "dune" --json
+moviebox-cli streams <subject-id> --season 1 --episode 2 --json
+moviebox-cli play <subject-id> --print-url
+```
+
+See [docs/cli.md](docs/cli.md) for the full surface.
+
 ## Documentation
 
 Full documentation at [**mesamirh.github.io/MovieBox-Tui**](https://mesamirh.github.io/MovieBox-Tui/) or [`docs/`](docs/):
