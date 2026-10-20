@@ -68,8 +68,12 @@ impl crate::providers::ReleaseProvider for client::MovieBoxClient {
         // play-info/resources path as a fallback for when upstream restores
         // signed manifests.
         if let Ok(details) = self.get_details(id).await {
-            let detector_releases =
-                adapt::moviebox_detector_json_to_releases(&details, season, episode);
+            let detector_releases = adapt::moviebox_detector_json_to_releases(
+                &details,
+                season,
+                episode,
+                self.user_agent(),
+            );
             if !detector_releases.is_empty() {
                 return Ok(detector_releases);
             }
