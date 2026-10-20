@@ -296,6 +296,14 @@ impl Bridge {
             _ => direct_source(&release)?,
         };
 
+        log::info!(
+            "playback resolved | provider={} | url={} | headers={}",
+            source.provider.cache_key(),
+            // The signed query is a bearer token, so only the host is logged.
+            moviebox_tui::logging::sanitize_url(&source.url),
+            source.headers.len()
+        );
+
         Ok(json!({
             "url": source.url,
             "headers": source.headers,
@@ -305,7 +313,6 @@ impl Bridge {
             "provider": source.provider.cache_key(),
         }))
     }
-
     pub fn subtitles(
         &self,
         subject_id: &str,
@@ -420,5 +427,33 @@ mod tests {
         let headers = value["data"]["headers"].as_array().expect("headers array");
         assert!(headers.iter().any(|entry| entry[0] == json!("User-Agent")));
         assert!(headers.iter().any(|entry| entry[0] == json!("Referer")));
+    }
+
+    /// The app re-encodes a release with its own model, which omits every
+    /// field that is unset. The bridge has to accept that payload.
+    #[test]
+    fn release_accepts_the_payload_the_app_sends_back() {
+        let payload = r#"{
+            "provider": "moviebox",
+            "filename": "Dune [Hindi]-1080P",
+            "quality": "1080p",
+            "codec": "h264",
+            "mirrors": [
+                {
+                    "label": "adilessa",
+                    "resolver_url": "https://bcdn.hakunaymatata.com/tran-audio/x.mp4?sign=abc&t=1"
+                }
+            ],
+            "resource_id": "5764199508657799296"
+        }"#;
+
+        let release: Release = serde_json::from_str(payload).expect("release payload");
+        assert_eq!(release.quality.as_deref(), Some("1080p"));
+        assert_eq!(release.language, None);
+        assert_eq!(release.size_bytes, None);
+        assert_eq!(release.mirrors.len(), 1);
+        assert!(release.mirrors[0].headers.is_empty());
+        assert!(!release.mirrors[0].direct_file);
+        assert_eq!(release.resource_id.as_deref(), Some("5764199508657799296"));
     }
 }

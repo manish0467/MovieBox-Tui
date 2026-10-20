@@ -476,10 +476,14 @@ pub fn is_trailer_or_notice_url(url: &str) -> bool {
 /// entries carry a signed CDN link (`?sign=<token>&t=<expiry>`), the real
 /// file size, duration and codec, so a release built from it is playable
 /// where a `play-info` release is not.
+///
+/// The CDN expects the MovieBox app user agent and rejects a `Referer`
+/// header, so every mirror carries the user agent only.
 pub fn moviebox_detector_json_to_releases(
     payload: &serde_json::Value,
     season: usize,
     episode: usize,
+    user_agent: &str,
 ) -> Vec<Release> {
     let data = payload.get("data").unwrap_or(payload);
     let Some(detectors) = data.get("resourceDetectors").and_then(|d| d.as_array()) else {
@@ -645,7 +649,7 @@ pub fn moviebox_detector_json_to_releases(
                 mirrors: vec![SourceMirror {
                     label,
                     resolver_url: link.to_string(),
-                    headers: vec![],
+                    headers: vec![("User-Agent".to_string(), user_agent.to_string())],
                     direct_file: true,
                 }],
                 resource_id,
@@ -1450,7 +1454,8 @@ mod tests {
 
     #[test]
     fn test_detector_json_to_releases_parses_signed_cdn_links() {
-        let releases = moviebox_detector_json_to_releases(&detector_payload(), 0, 0);
+        let releases =
+            moviebox_detector_json_to_releases(&detector_payload(), 0, 0, "TestAgent/1.0");
 
         assert_eq!(releases.len(), 2);
         // Highest resolution first.
@@ -1477,6 +1482,11 @@ mod tests {
             mirror.resolver_url
         );
         assert!(mirror.resolver_url.contains("sign="));
+        assert_eq!(
+            mirror.headers,
+            vec![("User-Agent".to_string(), "TestAgent/1.0".to_string())],
+            "the CDN expects the app user agent and rejects a Referer"
+        );
     }
 
     #[test]
@@ -1497,7 +1507,7 @@ mod tests {
             }
         ]);
 
-        let releases = moviebox_detector_json_to_releases(&payload, 0, 0);
+        let releases = moviebox_detector_json_to_releases(&payload, 0, 0, "TestAgent/1.0");
         assert!(
             releases.is_empty(),
             "the site trailer must never become a playable release"
@@ -1534,7 +1544,7 @@ mod tests {
             }
         ]);
 
-        let releases = moviebox_detector_json_to_releases(&payload, 1, 2);
+        let releases = moviebox_detector_json_to_releases(&payload, 1, 2, "TestAgent/1.0");
         assert_eq!(releases.len(), 1);
         assert_eq!(releases[0].filename, "Episode 2");
         assert_eq!(releases[0].episode, Some(2));
@@ -1561,7 +1571,7 @@ mod tests {
             }
         });
 
-        let releases = moviebox_detector_json_to_releases(&payload, 1, 1);
+        let releases = moviebox_detector_json_to_releases(&payload, 1, 1, "TestAgent/1.0");
         assert!(
             releases.is_empty(),
             "an unresolved detector must not produce a release"

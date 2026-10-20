@@ -202,8 +202,12 @@ impl MovieBoxService {
             return None;
         }
         let details = self.client.get_details(subject_id).await.ok()?;
-        let releases =
-            crate::providers::moviebox::adapt::moviebox_detector_json_to_releases(&details, 0, 0);
+        let releases = crate::providers::moviebox::adapt::moviebox_detector_json_to_releases(
+            &details,
+            0,
+            0,
+            self.client.user_agent(),
+        );
         let release = releases
             .iter()
             .find(|release| release.resource_id.as_deref() == Some(resource_id))?;
@@ -211,16 +215,12 @@ impl MovieBoxService {
         Some(crate::providers::models::PlaybackSource {
             provider: crate::providers::models::ProviderKind::MovieBox,
             url: mirror.resolver_url.clone(),
-            headers: vec![
-                (
-                    "Referer".to_string(),
-                    crate::providers::moviebox::STREAM_REFERER.to_string(),
-                ),
-                (
-                    "User-Agent".to_string(),
-                    self.client.user_agent().to_string(),
-                ),
-            ],
+            // The CDN answers 429 when a `Referer` is sent and expects the
+            // MovieBox app user agent.
+            headers: vec![(
+                "User-Agent".to_string(),
+                self.client.user_agent().to_string(),
+            )],
             subtitle: None,
             source_label: mirror.label.clone(),
             max_height: Some(release.resolution_u64()).filter(|&h| h > 0),
