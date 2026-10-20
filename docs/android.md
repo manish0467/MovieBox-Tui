@@ -116,7 +116,49 @@ Every function returns a JSON envelope:
 | `nativeFavorites()` / `nativeToggleFavorite(itemJson)` | Favorites library. |
 | `nativeHistory()` | Watch history. |
 | `nativeRecordWatchProgress(itemJson)` | Records watch progress into `history.json`. |
+| `nativeDownloadStart(requestJson)` | Starts a download, returns the job id. |
+| `nativeDownloadList()` | The state of every download job. |
+| `nativeDownloadCancel(jobId)` | Pauses a running download (the partial file is kept). |
+| `nativeDownloadRemove(jobId)` | Forgets a job; the file on disk stays. |
+| `nativeDownloadDirectory()` | The directory the app should save to. |
 | `nativePosterUrlHeaders(url)` | Headers the image loader must send for posters. |
+
+### Downloads
+
+The core download engine is exposed as jobs the app polls.
+
+`nativeDownloadStart(requestJson)` takes:
+
+```json
+{
+  "url": "https://bcdn.hakunaymatata.com/resource/h265/x.mp4?sign=…&t=…",
+  "headers": [["User-Agent", "com.community.oneroom/…"]],
+  "title": "Dune [Hindi]-1080P",
+  "provider": "moviebox",
+  "subjectId": "1511967966181605720",
+  "season": 0,
+  "episode": 0,
+  "destination": "/storage/emulated/0/Movies"
+}
+```
+
+`destination` is optional; without it the file goes to the core download
+directory (`nativeDownloadDirectory()`). Series land in
+`<base>/Series/<title>/Season N/<title> - SxxExx.mp4`, movies in
+`<base>/Movies/<title>/<title>.mp4`.
+
+`nativeDownloadList()` returns the jobs:
+
+```json
+{ "jobs": [ { "id": "dl-1", "title": "…", "state": "running",
+              "progress": { "downloaded": 1234, "total": 5678,
+                            "bytesPerSecond": 4096.0, "attempt": 1, "workers": 4 },
+              "destination": "/…/Dune.mp4", "error": null } ] }
+```
+
+`state` is one of `queued`, `running`, `completed`, `paused` or `failed`. The
+engine resumes a partial download on its own, so a paused job can be started
+again with the same destination.
 
 The `headers` field of a playback source is **not** optional for most
 providers. Which headers a source needs depends on the host: the MovieBox

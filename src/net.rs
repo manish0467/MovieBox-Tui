@@ -108,6 +108,32 @@ pub fn http_client_builder() -> reqwest::ClientBuilder {
     http_client_builder_base().timeout(std::time::Duration::from_secs(60))
 }
 
+/// Builds a client that sends the given headers with every request.
+///
+/// The CDNs behind the providers need them (the MovieBox app user agent, the
+/// `Referer` of the signed manifest hosts), and callers outside this crate
+/// should not have to depend on `reqwest` to pass them along.
+pub fn client_with_headers(headers: &[(String, String)]) -> reqwest::Client {
+    let mut map = reqwest::header::HeaderMap::new();
+    for (name, value) in headers {
+        match (
+            name.parse::<reqwest::header::HeaderName>(),
+            value.parse::<reqwest::header::HeaderValue>(),
+        ) {
+            (Ok(name), Ok(value)) => {
+                map.insert(name, value);
+            }
+            _ => {
+                log::warn!("skipping invalid header: {name}");
+            }
+        }
+    }
+    http_client_builder()
+        .default_headers(map)
+        .build()
+        .unwrap_or_default()
+}
+
 pub async fn probe_url(url: &str, timeout: std::time::Duration) -> bool {
     static PROBE_CLIENT: std::sync::LazyLock<reqwest::Client> = std::sync::LazyLock::new(|| {
         http_client_builder_base()

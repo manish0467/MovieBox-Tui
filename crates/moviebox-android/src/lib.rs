@@ -14,6 +14,7 @@
 //! ```
 
 mod api;
+mod downloads;
 
 use std::sync::OnceLock;
 
@@ -253,6 +254,67 @@ pub extern "system" fn Java_com_moviebox_app_core_NativeBridge_nativeRecordWatch
 ) -> jstring {
     let item_json = read_string(&mut env, &item_json);
     match bridge().record_watch_progress(&item_json) {
+        Ok(value) => return_json(&mut env, api::ok_envelope(&value)),
+        Err(err) => error_json(&mut env, &err),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moviebox_app_core_NativeBridge_nativeDownloadStart<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    request_json: JString<'local>,
+) -> jstring {
+    let request_json = read_string(&mut env, &request_json);
+    match bridge().start_download(&request_json) {
+        Ok(value) => return_json(&mut env, api::ok_envelope(&value)),
+        Err(err) => error_json(&mut env, &err),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moviebox_app_core_NativeBridge_nativeDownloadList<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) -> jstring {
+    match bridge().list_downloads() {
+        Ok(value) => return_json(&mut env, api::ok_envelope(&value)),
+        Err(err) => error_json(&mut env, &err),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moviebox_app_core_NativeBridge_nativeDownloadCancel<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    job_id: JString<'local>,
+) -> jstring {
+    let job_id = read_string(&mut env, &job_id);
+    match bridge().cancel_download(&job_id) {
+        Ok(value) => return_json(&mut env, api::ok_envelope(&value)),
+        Err(err) => error_json(&mut env, &err),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moviebox_app_core_NativeBridge_nativeDownloadRemove<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    job_id: JString<'local>,
+) -> jstring {
+    let job_id = read_string(&mut env, &job_id);
+    match bridge().remove_download(&job_id) {
+        Ok(value) => return_json(&mut env, api::ok_envelope(&value)),
+        Err(err) => error_json(&mut env, &err),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_moviebox_app_core_NativeBridge_nativeDownloadDirectory<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) -> jstring {
+    match bridge().download_directory() {
         Ok(value) => return_json(&mut env, api::ok_envelope(&value)),
         Err(err) => error_json(&mut env, &err),
     }

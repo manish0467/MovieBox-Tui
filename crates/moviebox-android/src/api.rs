@@ -11,6 +11,8 @@ use moviebox_tui::service::MovieBoxService;
 use serde::Serialize;
 use serde_json::{Value, json};
 
+use crate::downloads::{DownloadManager, DownloadRequest, JobState};
+
 /// Wraps a successful payload into the envelope understood by the Kotlin side.
 pub fn ok_envelope<T: Serialize>(data: &T) -> String {
     match serde_json::to_string(&json!({ "ok": true, "data": data })) {
@@ -89,6 +91,8 @@ pub struct Bridge {
     /// needs the subject id, which the Kotlin side does not send back, so the
     /// bridge remembers it from the listing call.
     subjects: std::sync::Mutex<std::collections::HashMap<String, String>>,
+    /// The running download jobs.
+    downloads: DownloadManager,
 }
 
 impl Bridge {
@@ -108,6 +112,7 @@ impl Bridge {
             runtime,
             service,
             subjects: std::sync::Mutex::new(std::collections::HashMap::new()),
+            downloads: DownloadManager::new(),
         }
     }
 
@@ -369,6 +374,128 @@ impl Bridge {
         manager.save();
 
         Ok(json!({ "recorded": true }))
+    }
+
+    /// Starts a download and returns its job id.
+    pub fn start_download(&self, request_json: &str) -> Result<Value, String> {
+        let request: DownloadRequest = serde_json::from_str(request_json)
+            .map_err(|err| format!("invalid download request: {err}"))?;
+        if request.url.trim().is_empty() {
+            return Err("the download request has no url".to_string());
+        }
+
+        let base = match request.destination.as_deref().map(str::trim) {
+            Some(path) if !path.is_empty() => PathBuf::from(path),
+            _ => moviebox_tui::service::resolve_download_dir(None),
+        };
+        let is_series = request.season > 0 || request.episode > 0;
+        let stem = moviebox_tui::download::safe_file_stem(&request.title);
+        let (directory, file_name) = moviebox_tui::download::resolve_media_target(
+            &base,
+            &stem,
+            is_series,
+            request.season,
+            request.episode,
+        );
+        let destination = directory.join(format!("{file_name}.mp4"));
+
+        if let Some(parent) = destination.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|err| format!("cannot create {}: {err}", parent.to_string_lossy()))?;
+        }
+
+        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let job = self
+            .downloads
+            .register(&request, destination.clone(), cancel.clone());
+
+        let url = request.url.clone();
+        let headers = request.headers.clone();
+        let runtime = &self.runtime;
+        let job_for_task = job.clone();
+        runtime.spawn(async move {
+            *job_for_task.state.lock().unwrap_or_else(|e| e.into_inner()) = JobState::Running;
+            let client = moviebox_tui::net::client_with_headers(&headers);
+            let result =
+                moviebox_tui::download::download(&client, &url, &destination, cancel, |progress| {
+                    let mut slot = job_for_task
+                        .progress
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
+                    slot.downloaded = progress.downloaded;
+                    slot.total = progress.total;
+                    slot.bytes_per_second = progress.bytes_per_second;
+                    slot.attempt = progress.attempt;
+                    slot.workers = progress.workers;
+                })
+                .await;
+
+            let mut state = job_for_task.state.lock().unwrap_or_else(|e| e.into_inner());
+            match result {
+                Ok(moviebox_tui::download::DownloadOutcome::Completed { bytes }) => {
+                    *state = JobState::Completed;
+                    drop(state);
+                    let mut slot = job_for_task
+                        .progress
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
+                    slot.downloaded = bytes;
+                }
+                Ok(moviebox_tui::download::DownloadOutcome::Paused { bytes }) => {
+                    *state = JobState::Paused;
+                    drop(state);
+                    let mut slot = job_for_task
+                        .progress
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
+                    slot.downloaded = bytes;
+                }
+                Err(error) => {
+                    *state = JobState::Failed;
+                    drop(state);
+                    *job_for_task.error.lock().unwrap_or_else(|e| e.into_inner()) =
+                        Some(error.user_message());
+                }
+            }
+        });
+
+        Ok(json!({ "id": job.id }))
+    }
+
+    /// The state of every download job.
+    pub fn list_downloads(&self) -> Result<Value, String> {
+        let jobs: Vec<Value> = self
+            .downloads
+            .list()
+            .iter()
+            .map(|job| job.to_json())
+            .collect();
+        Ok(json!({ "jobs": jobs }))
+    }
+
+    /// Pauses a running download. The partial file is kept so the job can be
+    /// resumed later.
+    pub fn cancel_download(&self, job_id: &str) -> Result<Value, String> {
+        let job = self
+            .downloads
+            .get(job_id)
+            .ok_or_else(|| format!("unknown download job: {job_id}"))?;
+        job.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        Ok(json!({ "cancelled": true }))
+    }
+
+    /// Forgets a job. The file on disk is left in place.
+    pub fn remove_download(&self, job_id: &str) -> Result<Value, String> {
+        let removed = self.downloads.remove(job_id);
+        Ok(json!({ "removed": removed }))
+    }
+
+    /// The directory the app should save downloads to.
+    pub fn download_directory(&self) -> Result<Value, String> {
+        let directory = moviebox_tui::service::resolve_download_dir(None);
+        Ok(json!({
+            "directory": directory.to_string_lossy(),
+        }))
     }
 
     /// The `User-Agent` the core engine uses for provider requests.
