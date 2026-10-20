@@ -103,7 +103,8 @@ Pre-commit hook (enable once with `git config core.hooksPath .githooks`): runs
 - `cargo build --no-default-features` produces the headless engine only. The Android
   bridge depends on the crate with `default-features = false`, so **the shared library
   must never link the terminal frontend**.
-- Workspace: root package + `crates/moviebox-android` (both are `default-members`).
+- Workspace: root package + `crates/moviebox-android` (only the root package is a
+  default member, see the build commands above).
 
 ## Architecture invariants — do not break these
 
