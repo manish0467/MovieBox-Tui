@@ -272,4 +272,44 @@ class MovieBoxRepository {
             }
         }.getOrNull()
     }
+
+    /* ------------------------------------------------------------------ *
+     * Downloads engine facade
+     * ------------------------------------------------------------------ */
+
+    suspend fun startDownload(request: DownloadRequest): String = withContext(Dispatchers.IO) {
+        val payload = json.encodeToString(DownloadRequest.serializer(), request)
+        decodeData(
+            NativeBridge.nativeDownloadStart(payload),
+            DownloadStartPayload.serializer(),
+        ).id
+    }
+
+    suspend fun listDownloads(): List<DownloadJob> = withContext(Dispatchers.IO) {
+        decodeData(
+            NativeBridge.nativeDownloadList(),
+            DownloadListPayload.serializer(),
+        ).jobs
+    }
+
+    suspend fun cancelDownload(jobId: String): Boolean = withContext(Dispatchers.IO) {
+        decodeData(
+            NativeBridge.nativeDownloadCancel(jobId),
+            DownloadCancelPayload.serializer(),
+        ).cancelled
+    }
+
+    suspend fun removeDownload(jobId: String): Boolean = withContext(Dispatchers.IO) {
+        decodeData(
+            NativeBridge.nativeDownloadRemove(jobId),
+            DownloadRemovePayload.serializer(),
+        ).removed
+    }
+
+    suspend fun downloadDirectory(): String = withContext(Dispatchers.IO) {
+        decodeData(
+            NativeBridge.nativeDownloadDirectory(),
+            DownloadDirectoryPayload.serializer(),
+        ).directory
+    }
 }

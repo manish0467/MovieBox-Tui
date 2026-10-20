@@ -1,8 +1,10 @@
 package com.moviebox.app.ui
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.moviebox.app.core.DownloadRequest
 import com.moviebox.app.core.MediaDetails
 import com.moviebox.app.core.MovieBoxRepository
 import com.moviebox.app.core.PlaybackSource
@@ -181,6 +183,44 @@ class DetailsViewModel(app: Application) : AndroidViewModel(app) {
             }.onFailure { error ->
                 _state.update {
                     it.copy(resolving = false, error = error.message ?: "Playback failed")
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolves a release into a playable source and registers a background
+     * download job via the bridge.
+     */
+    fun download(
+        context: Context,
+        release: Release,
+        onStarted: (String) -> Unit = {},
+    ) {
+        val details = _state.value.details ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(resolving = true, error = null) }
+            runCatching {
+                repository.resolvePlayback(details.id.provider, release)
+            }.onSuccess { source ->
+                val destinationBase = context.getExternalFilesDir(null)?.absolutePath
+                val title = if (release.filename.isNotBlank()) release.filename else details.title
+                val request = DownloadRequest(
+                    url = source.url,
+                    headers = source.headers,
+                    title = title,
+                    provider = details.id.provider,
+                    subjectId = details.id.value,
+                    season = _state.value.selectedSeason,
+                    episode = _state.value.selectedEpisode,
+                    destination = destinationBase,
+                )
+                val jobId = repository.startDownload(request)
+                _state.update { it.copy(resolving = false) }
+                onStarted(jobId)
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(resolving = false, error = error.message ?: "Failed to start download")
                 }
             }
         }

@@ -25,10 +25,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AssistChip
@@ -44,6 +48,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -65,12 +70,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.moviebox.app.core.CatalogItem
+import com.moviebox.app.core.DownloadJob
 import com.moviebox.app.core.FavoriteItem
 import com.moviebox.app.core.ProviderMediaId
 import com.moviebox.app.core.WatchHistoryItem
 import com.moviebox.app.ui.DEFAULT_HOME_DECK_TABS
 import com.moviebox.app.ui.HomeUiState
 import com.moviebox.app.ui.MainTab
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,6 +92,11 @@ fun HomeScreen(
     onToggleFavorite: (FavoriteItem) -> Unit,
     onOpenItem: (CatalogItem) -> Unit,
     onOpenHistoryItem: (WatchHistoryItem) -> Unit,
+    onPauseDownload: (String) -> Unit = {},
+    onResumeDownload: (DownloadJob) -> Unit = {},
+    onRemoveDownload: (String) -> Unit = {},
+    onOpenDownload: (DownloadJob) -> Unit = {},
+    onRefreshDownloads: () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -100,6 +113,7 @@ fun HomeScreen(
                             MainTab.HOME -> "MovieBox"
                             MainTab.FAVORITES -> "Favorites"
                             MainTab.HISTORY -> "Watch History"
+                            MainTab.DOWNLOADS -> "Downloads"
                         },
                         fontWeight = FontWeight.Bold,
                     )
@@ -125,6 +139,12 @@ fun HomeScreen(
                     onClick = { onSelectMainTab(MainTab.HISTORY) },
                     icon = { Icon(Icons.Filled.History, contentDescription = "History") },
                     label = { Text("History") },
+                )
+                NavigationBarItem(
+                    selected = state.selectedTab == MainTab.DOWNLOADS,
+                    onClick = { onSelectMainTab(MainTab.DOWNLOADS) },
+                    icon = { Icon(Icons.Filled.Download, contentDescription = "Downloads") },
+                    label = { Text("Downloads") },
                 )
             }
         },
@@ -153,6 +173,14 @@ fun HomeScreen(
                 MainTab.HISTORY -> HistoryTabContent(
                     state = state,
                     onOpenHistoryItem = onOpenHistoryItem,
+                )
+                MainTab.DOWNLOADS -> DownloadsTabContent(
+                    downloads = state.downloads,
+                    onPause = onPauseDownload,
+                    onResume = onResumeDownload,
+                    onRemove = onRemoveDownload,
+                    onOpen = onOpenDownload,
+                    onPoll = onRefreshDownloads,
                 )
             }
         }
@@ -729,6 +757,254 @@ private fun PosterCard(item: CatalogItem, onClick: () -> Unit) {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DownloadsTabContent(
+    downloads: List<DownloadJob>,
+    onPause: (String) -> Unit,
+    onResume: (DownloadJob) -> Unit,
+    onRemove: (String) -> Unit,
+    onOpen: (DownloadJob) -> Unit,
+    onPoll: () -> Unit,
+) {
+    // Poll nativeDownloadList() while the downloads screen is active
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            onPoll()
+            delay(1000)
+        }
+    }
+
+    if (downloads.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(32.dp),
+            ) {
+                Icon(
+                    Icons.Filled.Download,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "No downloads yet",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Find a title and tap Download next to any source stream",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+        }
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        items(downloads, key = { it.id }) { job ->
+            DownloadJobCard(
+                job = job,
+                onPause = { onPause(job.id) },
+                onResume = { onResume(job) },
+                onRemove = { onRemove(job.id) },
+                onOpen = { onOpen(job) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun DownloadJobCard(
+    job: DownloadJob,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onRemove: () -> Unit,
+    onOpen: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = job.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = buildString {
+                            if (job.isSeries) {
+                                append("S${job.season}:E${job.episode}")
+                            } else {
+                                append("Movie")
+                            }
+                            if (job.provider.isNotBlank()) {
+                                append(" · ").append(job.provider)
+                            }
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                // State Badge
+                val (stateText, stateColor) = when {
+                    job.isCompleted -> "Completed" to Color(0xFF4CAF50)
+                    job.isRunning -> "Running" to MaterialTheme.colorScheme.primary
+                    job.isPaused -> "Paused" to Color(0xFFFFA000)
+                    job.isFailed -> "Failed" to MaterialTheme.colorScheme.error
+                    else -> "Queued" to MaterialTheme.colorScheme.secondary
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(stateColor.copy(alpha = 0.15f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        text = stateText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = stateColor,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Progress bar & details
+            if (job.isRunning || job.isPaused || job.isQueued) {
+                LinearProgressIndicator(
+                    progress = { job.progress.progressFraction },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = "${job.progress.downloadedFormatted} / ${job.progress.totalFormatted}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (job.isRunning) {
+                        Text(
+                            text = job.progress.speedFormatted,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                }
+            } else if (job.isCompleted) {
+                LinearProgressIndicator(
+                    progress = { 1f },
+                    color = Color(0xFF4CAF50),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "${job.progress.downloadedFormatted} · Finished",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (job.isFailed) {
+                job.error?.let { err ->
+                    Text(
+                        text = err,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                when {
+                    job.isRunning -> {
+                        OutlinedButton(onClick = onPause) {
+                            Icon(Icons.Filled.Pause, contentDescription = "Pause", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Pause")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(onClick = onRemove) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Cancel & Remove", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                    job.isPaused -> {
+                        Button(onClick = onResume) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = "Resume", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Resume")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(onClick = onRemove) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Remove", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                    job.isFailed -> {
+                        Button(onClick = onResume) {
+                            Icon(Icons.Filled.Refresh, contentDescription = "Retry", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Retry")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(onClick = onRemove) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Remove", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                    job.isCompleted -> {
+                        Button(onClick = onOpen) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = "Play", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Open")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(onClick = onRemove) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Remove from list", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             }
         }
     }

@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -29,6 +30,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -61,6 +63,7 @@ fun DetailsScreen(
     onSeasonSelected: (Int) -> Unit,
     onEpisodeSelected: (Int) -> Unit,
     onPlay: (Release, SubtitleOption?) -> Unit,
+    onDownload: (Release) -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -364,6 +367,7 @@ fun DetailsScreen(
                     ReleaseRow(
                         release = release,
                         onPlay = { onPlay(release, state.selectedSubtitle) },
+                        onDownload = { onDownload(release) },
                     )
                 }
             }
@@ -372,7 +376,11 @@ fun DetailsScreen(
 }
 
 @Composable
-private fun ReleaseRow(release: Release, onPlay: () -> Unit) {
+private fun ReleaseRow(
+    release: Release,
+    onPlay: () -> Unit,
+    onDownload: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -396,6 +404,12 @@ private fun ReleaseRow(release: Release, onPlay: () -> Unit) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        OutlinedButton(onClick = onDownload) {
+            Icon(Icons.Filled.Download, contentDescription = "Download")
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Download", fontWeight = FontWeight.Medium)
         }
         Spacer(modifier = Modifier.width(8.dp))
         Button(onClick = onPlay) {

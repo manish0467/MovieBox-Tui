@@ -63,5 +63,20 @@ object NativeBridge {
     external fun nativeRecordWatchProgress(itemJson: String): String
 
     @JvmStatic
+    external fun nativeDownloadStart(requestJson: String): String
+
+    @JvmStatic
+    external fun nativeDownloadList(): String
+
+    @JvmStatic
+    external fun nativeDownloadCancel(jobId: String): String
+
+    @JvmStatic
+    external fun nativeDownloadRemove(jobId: String): String
+
+    @JvmStatic
+    external fun nativeDownloadDirectory(): String
+
+    @JvmStatic
     external fun nativePosterUrlHeaders(url: String): String
 }

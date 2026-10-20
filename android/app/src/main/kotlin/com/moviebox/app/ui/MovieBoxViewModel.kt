@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.moviebox.app.core.CatalogItem
+import com.moviebox.app.core.DownloadJob
+import com.moviebox.app.core.DownloadRequest
 import com.moviebox.app.core.FavoriteItem
 import com.moviebox.app.core.MovieBoxRepository
 import com.moviebox.app.core.ProviderInfo
@@ -20,6 +22,7 @@ enum class MainTab(val title: String) {
     HOME("Home"),
     FAVORITES("Favorites"),
     HISTORY("History"),
+    DOWNLOADS("Downloads"),
 }
 
 data class HomeDeckTab(
@@ -44,10 +47,12 @@ data class HomeUiState(
     val continueWatching: List<WatchHistoryItem> = emptyList(),
     val favorites: List<FavoriteItem> = emptyList(),
     val history: List<WatchHistoryItem> = emptyList(),
+    val downloads: List<DownloadJob> = emptyList(),
     val loading: Boolean = false,
     val deckLoading: Boolean = false,
     val favoritesLoading: Boolean = false,
     val historyLoading: Boolean = false,
+    val downloadsLoading: Boolean = false,
     val error: String? = null,
 ) {
     val activeProviderInfo: ProviderInfo?
@@ -96,6 +101,7 @@ class MovieBoxViewModel(app: Application) : AndroidViewModel(app) {
             }
             MainTab.FAVORITES -> loadFavorites()
             MainTab.HISTORY -> loadHistory()
+            MainTab.DOWNLOADS -> loadDownloads()
         }
     }
 
@@ -172,6 +178,72 @@ class MovieBoxViewModel(app: Application) : AndroidViewModel(app) {
                 .onSuccess {
                     loadFavorites()
                 }
+        }
+    }
+
+    /* ------------------------------------------------------------------ *
+     * Downloads engine
+     * ------------------------------------------------------------------ */
+
+    fun loadDownloads() {
+        viewModelScope.launch {
+            runCatching { repository.listDownloads() }
+                .onSuccess { jobs ->
+                    _state.update { it.copy(downloads = jobs) }
+                    // Scan completed files into the system media store
+                    jobs.filter { it.isCompleted }.forEach { job ->
+                        android.media.MediaScannerConnection.scanFile(
+                            getApplication(),
+                            arrayOf(job.destination),
+                            arrayOf("video/mp4"),
+                            null,
+                        )
+                    }
+                }
+        }
+    }
+
+    fun pauseDownload(jobId: String) {
+        viewModelScope.launch {
+            runCatching { repository.cancelDownload(jobId) }
+                .onSuccess { loadDownloads() }
+        }
+    }
+
+    fun resumeDownload(job: DownloadJob) {
+        viewModelScope.launch {
+            val destinationBase = getApplication<Application>().getExternalFilesDir(null)?.absolutePath
+            // Re-resolve source to guarantee a fresh, non-expired signed CDN URL
+            if (job.subjectId.isNotBlank() && job.provider.isNotBlank()) {
+                runCatching {
+                    val releases = repository.episodeStreams(job.provider, job.subjectId, job.season, job.episode)
+                    val matching = releases.firstOrNull { it.filename == job.title } ?: releases.firstOrNull()
+                    if (matching != null) {
+                        val source = repository.resolvePlayback(job.provider, matching)
+                        repository.startDownload(
+                            DownloadRequest(
+                                url = source.url,
+                                headers = source.headers,
+                                title = job.title,
+                                provider = job.provider,
+                                subjectId = job.subjectId,
+                                season = job.season,
+                                episode = job.episode,
+                                destination = destinationBase,
+                            ),
+                        )
+                    }
+                }.onSuccess {
+                    loadDownloads()
+                }
+            }
+        }
+    }
+
+    fun removeDownload(jobId: String) {
+        viewModelScope.launch {
+            runCatching { repository.removeDownload(jobId) }
+                .onSuccess { loadDownloads() }
         }
     }
 

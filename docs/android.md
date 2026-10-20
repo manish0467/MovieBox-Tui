@@ -200,7 +200,7 @@ Kotlin player applies whatever the bridge returns through
 ### 6. Background Downloads & Job Management
 - Backed by the download engine exposed through `nativeDownloadStart`, `nativeDownloadList`, `nativeDownloadCancel`, `nativeDownloadRemove`, and `nativeDownloadDirectory`.
 - Download buttons next to "Play" on every source row in `DetailsScreen` resolve the source URL and headers via `nativeResolvePlayback` before dispatching.
-- The **Downloads** bottom navigation tab displays live jobs with progress bars, transfer speeds (MB/s), downloaded/total sizes, and state chips (Running, Paused, Completed, Failed, Queued).
+- The **Downloads** bottom navigation tab displays live jobs with progress bars, transfer speeds (MB/s or KB/s), downloaded/total sizes, and state chips (Running, Paused, Completed, Failed, Queued).
 - Active jobs are polled every second while the Downloads screen is visible and automatically stopped when leaving the screen.
 - Controls include Pause, Resume (which re-resolves fresh signed URLs and headers on expiry), Remove, and Open.
 - Finished downloads are indexed into the system media store via `MediaScannerConnection` and can be played directly with the native Media3 player.

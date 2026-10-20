@@ -214,3 +214,101 @@ data class ToggleFavoritePayload(val favorite: Boolean = false)
 
 @Serializable
 data class HeadersPayload(val headers: List<List<String>> = emptyList())
+
+/* ------------------------------------------------------------------ *
+ * Download DTOs and payloads
+ * ------------------------------------------------------------------ */
+
+/** Mirrors `moviebox_android::downloads::DownloadRequest`. */
+@Serializable
+data class DownloadRequest(
+    val url: String,
+    val headers: List<List<String>> = emptyList(),
+    val title: String,
+    val provider: String = "",
+    @SerialName("subjectId") val subjectId: String = "",
+    val season: Int = 0,
+    val episode: Int = 0,
+    val destination: String? = null,
+)
+
+/** Mirrors `moviebox_android::downloads::JobProgress`. */
+@Serializable
+data class DownloadProgress(
+    val downloaded: Long = 0L,
+    val total: Long? = null,
+    val bytesPerSecond: Double = 0.0,
+    val attempt: Int = 1,
+    val workers: Int = 1,
+) {
+    val progressFraction: Float
+        get() {
+            val tot = total ?: return 0f
+            return if (tot > 0) (downloaded.toFloat() / tot.toFloat()).coerceIn(0f, 1f) else 0f
+        }
+
+    val speedFormatted: String
+        get() {
+            val bps = bytesPerSecond
+            return when {
+                bps >= 1024 * 1024 -> String.format(java.util.Locale.US, "%.1f MB/s", bps / (1024.0 * 1024.0))
+                bps >= 1024 -> String.format(java.util.Locale.US, "%.1f KB/s", bps / 1024.0)
+                bps > 0 -> String.format(java.util.Locale.US, "%.0f B/s", bps)
+                else -> "0 B/s"
+            }
+        }
+
+    val downloadedFormatted: String
+        get() = formatBytes(downloaded)
+
+    val totalFormatted: String
+        get() = total?.let { formatBytes(it) } ?: "Unknown"
+
+    private fun formatBytes(bytes: Long): String {
+        val b = bytes.toDouble()
+        return when {
+            b >= 1024 * 1024 * 1024 -> String.format(java.util.Locale.US, "%.2f GB", b / (1024.0 * 1024.0 * 1024.0))
+            b >= 1024 * 1024 -> String.format(java.util.Locale.US, "%.1f MB", b / (1024.0 * 1024.0))
+            b >= 1024 -> String.format(java.util.Locale.US, "%.1f KB", b / 1024.0)
+            else -> "$bytes B"
+        }
+    }
+}
+
+/** Mirrors `moviebox_android::downloads::DownloadJob`. */
+@Serializable
+data class DownloadJob(
+    val id: String,
+    val title: String,
+    val provider: String = "",
+    @SerialName("subjectId") val subjectId: String = "",
+    val season: Int = 0,
+    val episode: Int = 0,
+    val destination: String,
+    val state: String = "queued",
+    val error: String? = null,
+    val progress: DownloadProgress = DownloadProgress(),
+) {
+    val isRunning: Boolean get() = state.equals("running", ignoreCase = true)
+    val isPaused: Boolean get() = state.equals("paused", ignoreCase = true)
+    val isCompleted: Boolean get() = state.equals("completed", ignoreCase = true)
+    val isFailed: Boolean get() = state.equals("failed", ignoreCase = true)
+    val isQueued: Boolean get() = state.equals("queued", ignoreCase = true)
+    val isSeries: Boolean get() = season > 0 || episode > 0
+}
+
+@Serializable
+data class DownloadStartPayload(val id: String)
+
+@Serializable
+data class DownloadListPayload(val jobs: List<DownloadJob> = emptyList())
+
+@Serializable
+data class DownloadCancelPayload(val cancelled: Boolean = false)
+
+@Serializable
+data class DownloadRemovePayload(val removed: Boolean = false)
+
+@Serializable
+data class DownloadDirectoryPayload(val directory: String)
+

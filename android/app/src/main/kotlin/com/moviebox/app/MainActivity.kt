@@ -1,18 +1,24 @@
 package com.moviebox.app
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.moviebox.app.core.DownloadJob
+import com.moviebox.app.core.DownloadRequest
+import com.moviebox.app.core.MovieBoxRepository
 import com.moviebox.app.core.PlaybackSource
 import com.moviebox.app.core.SubtitleOption
 import com.moviebox.app.player.PlayerActivity
@@ -21,6 +27,7 @@ import com.moviebox.app.ui.MovieBoxViewModel
 import com.moviebox.app.ui.screens.DetailsScreen
 import com.moviebox.app.ui.screens.HomeScreen
 import com.moviebox.app.ui.theme.MovieBoxTheme
+import kotlinx.coroutines.launch
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
@@ -37,13 +44,41 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleIntent(intent)
         setContent {
             MovieBoxTheme {
                 MovieBoxApp(
                     homeViewModel = homeViewModel,
                     detailsViewModel = detailsViewModel,
                     onPlay = ::launchPlayer,
+                    onOpenDownload = ::openDownloadedMedia,
+                    onDownloadRelease = ::downloadRelease,
                 )
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        val testUrl = intent?.getStringExtra("test_download_url")
+        if (!testUrl.isNullOrBlank()) {
+            val testTitle = intent.getStringExtra("test_download_title") ?: "Test Media"
+            val dest = getExternalFilesDir(null)?.absolutePath
+            val request = DownloadRequest(
+                url = testUrl,
+                headers = emptyList(),
+                title = testTitle,
+                provider = "test",
+                destination = dest,
+            )
+            lifecycleScope.launch {
+                MovieBoxRepository().startDownload(request)
+                homeViewModel.loadDownloads()
             }
         }
     }
@@ -51,6 +86,46 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         homeViewModel.loadLibrary()
+    }
+
+    private fun openDownloadedMedia(job: DownloadJob) {
+        val file = java.io.File(job.destination)
+        if (!file.exists()) {
+            Toast.makeText(this, "File not found: ${job.destination}", Toast.LENGTH_LONG).show()
+            return
+        }
+        android.media.MediaScannerConnection.scanFile(
+            this,
+            arrayOf(file.absolutePath),
+            arrayOf("video/mp4"),
+            null,
+        )
+        launchPlayer(
+            source = PlaybackSource(
+                url = Uri.fromFile(file).toString(),
+                headers = emptyList(),
+                sourceLabel = "Local Download",
+                provider = job.provider,
+            ),
+            title = job.title,
+            provider = job.provider,
+            subjectId = job.subjectId,
+            coverUrl = null,
+            season = job.season,
+            episode = job.episode,
+            year = null,
+            startPositionSec = 0L,
+        )
+    }
+
+    private fun downloadRelease(release: com.moviebox.app.core.Release) {
+        detailsViewModel.download(
+            context = this,
+            release = release,
+            onStarted = { jobId ->
+                Toast.makeText(this, "Download started ($jobId)", Toast.LENGTH_SHORT).show()
+            },
+        )
     }
 
     private fun launchPlayer(
@@ -113,6 +188,8 @@ private fun MovieBoxApp(
         subtitleName: String?,
         subtitles: List<SubtitleOption>,
     ) -> Unit,
+    onOpenDownload: (DownloadJob) -> Unit,
+    onDownloadRelease: (com.moviebox.app.core.Release) -> Unit,
 ) {
     val navController = rememberNavController()
     val homeState by homeViewModel.state.collectAsStateWithLifecycle()
@@ -142,6 +219,11 @@ private fun MovieBoxApp(
                     }
                     navController.navigate("details/${historyItem.provider}/${historyItem.subjectId}")
                 },
+                onPauseDownload = homeViewModel::pauseDownload,
+                onResumeDownload = homeViewModel::resumeDownload,
+                onRemoveDownload = homeViewModel::removeDownload,
+                onRefreshDownloads = homeViewModel::loadDownloads,
+                onOpenDownload = onOpenDownload,
             )
         }
 
@@ -179,6 +261,7 @@ private fun MovieBoxApp(
                         )
                     }
                 },
+                onDownload = onDownloadRelease,
             )
         }
     }
