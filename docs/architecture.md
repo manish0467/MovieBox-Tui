@@ -19,9 +19,11 @@ The crate is split in two layers so that non-terminal frontends can reuse the en
 ┌───────────────────────┐        ┌──────────────────────────────┐
 │ Terminal frontend     │        │ Android bridge               │
 │ `tui` feature         │        │ crates/moviebox-android      │
-│ tui · player · proxy  │        │ (cdylib, JNI, JSON payloads)  │
-│ updater               │        │                              │
+│ tui · proxy · updater │        │ (cdylib, JNI, JSON payloads)  │
 └───────────────────────┘        └──────────────────────────────┘
+┌───────────────────────┐
+│ Headless CLI          │  moviebox-cli (core only, no terminal)
+└───────────────────────┘
 ```
 
 - The **core** has no terminal, OS or UI dependency. Helpers that used to live in
@@ -31,6 +33,9 @@ The crate is split in two layers so that non-terminal frontends can reuse the en
   default. `cargo build --no-default-features` produces a headless engine.
 - The **Android bridge** is a separate `cdylib` crate that depends on the engine with
   `default-features = false` and exposes it over JNI. See [android.md](android.md).
+- The **headless CLI** (`moviebox-cli`) is a second binary over the core: it needs no
+  terminal, so the player launcher lives in the core rather than behind the `tui`
+  feature. See [cli.md](cli.md).
 
 ## System Architecture & Data Flow
 

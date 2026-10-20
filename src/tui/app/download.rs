@@ -48,16 +48,12 @@ impl App {
         let episode = self.state.selected_episode;
         let safe_title = crate::download::safe_file_stem(clean_title);
 
-        let extension = link
-            .split('?')
-            .next()
-            .and_then(|path| path.rsplit('.').next())
-            .filter(|ext| {
-                let lower = ext.to_ascii_lowercase();
-                matches!(lower.as_str(), "mp4" | "mkv" | "webm" | "ts")
-            })
-            .unwrap_or("mp4")
-            .to_ascii_lowercase();
+        let is_dash = crate::player::is_dash_url(&link);
+        // A DASH manifest is merged from a video and an audio track. Matroska
+        // accepts every codec combination, so merging into it lets ffmpeg
+        // stream-copy instead of re-encoding the tracks into MP4, which is what
+        // produced the heavily compressed downloads.
+        let extension = crate::download::download_extension(&link);
 
         let base_dir = crate::service::resolve_download_dir(self.state.download_dir.as_deref());
         let (target_dir, base_name) = crate::download::resolve_media_target(
@@ -147,8 +143,6 @@ impl App {
                 );
                 self.service.http_client.clone()
             });
-
-        let is_dash = crate::player::is_dash_url(&link);
 
         self.request_tasks.cancel_download();
         let validation_base_dir = base_dir.clone();
@@ -287,6 +281,10 @@ impl App {
                 let format_spec = crate::player::ytdlp_format_selector(max_height);
                 cmd.arg("-f")
                     .arg(format_spec)
+                    // Merge into Matroska and copy the streams: without this
+                    // yt-dlp re-encodes into MP4 and the result is a much
+                    // smaller, lower quality file than the source.
+                    .args(crate::player::ytdlp_lossless_merge_args())
                     .arg("--newline")
                     .arg("--part")
                     .arg("--concurrent-fragments")

@@ -21,6 +21,10 @@ src/
   cache.rs           Disk cache: provider-namespaced directories, TTL expiry,
                      atomic temp-file writes, payload validation, background purge.
 
+  cli.rs             Headless command line interface: argument parsing, the
+                     providers/search/details/streams/play commands and their
+                     JSON output. Lives in the core so the CLI needs no terminal.
+
   config.rs          Config struct: load/save config.json (mode persistence,
                      mode toggles, provider, theme, auto-update, default player,
                      download directory, bdix flag).
@@ -147,7 +151,10 @@ crates/moviebox-android/
   src/lib.rs        JNI entry points (`Java_com_moviebox_app_core_NativeBridge_*`).
                      Every call returns a JSON envelope.
   src/api.rs        Bridge operations: providers, search, details, episode
-                     streams, playback resolution, subtitles, favorites, history.
+                     streams, playback resolution, subtitles, favorites, history,
+                     watch progress and the download jobs.
+  src/downloads.rs  The download job manager: the request the app sends, the
+                     job state and progress, and the registry of running jobs.
 ```
 
 The `tui`, `player`, `proxy` and `updater` modules are compiled only when the

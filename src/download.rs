@@ -54,6 +54,27 @@ pub fn safe_file_stem(value: &str) -> String {
     stem
 }
 
+/// Picks the file extension of a download.
+///
+/// A DASH manifest is merged from a video and an audio track, so it lands in
+/// Matroska: the container accepts every codec, which lets ffmpeg stream-copy
+/// the tracks instead of re-encoding them into a smaller, lower quality file.
+pub fn download_extension(link: &str) -> String {
+    let candidate = link
+        .split('?')
+        .next()
+        .and_then(|path| path.rsplit('.').next())
+        .map(|ext| ext.to_ascii_lowercase());
+    match candidate.as_deref() {
+        Some("mp4") => "mp4".to_string(),
+        Some("mkv") => "mkv".to_string(),
+        Some("webm") => "webm".to_string(),
+        Some("ts") => "ts".to_string(),
+        _ if crate::player::is_dash_url(link) => "mkv".to_string(),
+        _ => "mp4".to_string(),
+    }
+}
+
 pub fn resolve_media_target(
     base_dir: &Path,
     safe_title: &str,
@@ -1039,6 +1060,46 @@ mod tests {
         assert!(!sidecar_path(&dest_file, "part.json").exists());
 
         let _ = tokio::fs::remove_dir_all(&temp_dir).await;
+    }
+
+    #[test]
+    fn test_download_extension_keeps_the_source_container() {
+        assert_eq!(
+            download_extension("https://cdn.test/movie.mp4?sign=abc"),
+            "mp4"
+        );
+        assert_eq!(
+            download_extension("https://cdn.test/movie.mkv?sign=abc"),
+            "mkv"
+        );
+        assert_eq!(download_extension("https://cdn.test/movie.webm"), "webm");
+    }
+
+    #[test]
+    fn test_download_extension_uses_matroska_for_dash() {
+        // A DASH manifest is merged from two tracks: Matroska keeps them
+        // lossless instead of re-encoding them into MP4.
+        assert_eq!(
+            download_extension(
+                "https://sbcdn3.hakunaymatata.com/dash/3264_0_0_1080_h265_560/index.mpd"
+            ),
+            "mkv"
+        );
+        assert_eq!(
+            download_extension(
+                "https://sbcdn3.hakunaymatata.com/dash/3264_0_0_1080_h265_560/index.mpd?policy=x"
+            ),
+            "mkv"
+        );
+    }
+
+    #[test]
+    fn test_lossless_merge_arguments_disable_re_encoding() {
+        let args = crate::player::ytdlp_lossless_merge_args();
+        assert!(args.contains(&"--merge-output-format"));
+        assert!(args.contains(&"mkv"));
+        assert!(args.contains(&"--postprocessor-args"));
+        assert!(args.contains(&"Merger:-c copy"));
     }
 
     #[test]

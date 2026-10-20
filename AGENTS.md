@@ -135,6 +135,10 @@ Pre-commit hook (enable once with `git config core.hooksPath .githooks`): runs
   `android/app/src/main/kotlin/com/moviebox/app/core/NativeBridge.kt` (`@JvmStatic
   external fun`). **Change both sides together** or the app crashes with
   `UnsatisfiedLinkError`.
+- **The bridge is a fixed contract.** 19 entry points: providers, search, suggest,
+  homepage, details, episode streams, playback resolution, subtitles, favourites,
+  history, watch progress, the five download calls and the poster headers. The
+  download jobs are documented in `docs/android.md`.
 - **Payload format:** every bridge call returns a JSON envelope
   `{"ok":true,"data":…}` / `{"ok":false,"error":"…"}` (see `ok_envelope` /
   `error_envelope` in `crates/moviebox-android/src/api.rs`). Kotlin decodes it in
@@ -163,6 +167,22 @@ Pre-commit hook (enable once with `git config core.hooksPath .githooks`): runs
   the whole point.
 - The Android app is distributed as an APK from a GitHub release on the fork; it
   is not published to crates.io.
+
+## The headless CLI
+
+`moviebox-cli` is a second binary over the core, for scripts and containers. It lives
+in `src/cli.rs` (core, no `tui` feature) with the binary in `src/bin/moviebox-cli.rs`.
+The player launcher therefore lives in the core too — `src/player.rs` has no terminal
+dependency.
+
+```bash
+cargo run --bin moviebox-cli -- search "dune" --json
+cargo run --bin moviebox-cli -- streams <subject-id> --season 1 --episode 2 --json
+cargo run --bin moviebox-cli -- play <subject-id> --print-url
+```
+
+`--json` prints a single JSON document, `--print-url` hands out a freshly signed link
+(the CDN links expire). See `docs/cli.md`.
 
 ## Style, commits and scope
 

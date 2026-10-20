@@ -80,7 +80,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: "ci-hygiene"
-      - run: cargo fmt --check
+      - run: cargo fmt --all --check
       - name: Validate Unix installer syntax
         run: bash -n install.sh
       - name: Validate Windows installer syntax

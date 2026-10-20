@@ -128,6 +128,21 @@ pub fn is_dash_url(url: &str) -> bool {
     clean.ends_with(".mpd") || clean.contains("/dash/")
 }
 
+/// The arguments that keep a DASH merge lossless.
+///
+/// yt-dlp merges the video and the audio track with ffmpeg. When the container
+/// cannot hold the codecs, ffmpeg re-encodes them, and the "highest quality"
+/// download ends up smaller and lower quality than the source. Matroska holds
+/// every codec, so merging into it lets ffmpeg stream-copy the tracks.
+pub fn ytdlp_lossless_merge_args() -> [&'static str; 4] {
+    [
+        "--merge-output-format",
+        "mkv",
+        "--postprocessor-args",
+        "Merger:-c copy",
+    ]
+}
+
 pub fn ytdlp_format_selector(max_height: Option<u64>) -> String {
     if let Some(height) = max_height.filter(|&h| h > 0) {
         format!(
