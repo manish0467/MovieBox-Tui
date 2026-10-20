@@ -2,10 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+- **Native Android App**:
+  - Added a native Android application (Jetpack Compose + Media3) built on the shared Rust core engine, with the core split behind a `tui` Cargo feature so the library never links the terminal frontend.
+  - Added a favorites library, a watch history and continue-watching deck, subtitle selection with in-player track switching, a resolution picker, provider switching and a home deck to the Android app.
+  - Added `nativeRecordWatchProgress` to the JNI bridge so the app records watch progress through the core instead of writing the history file itself.
+
+## [0.1.27] - 2026-10-20
+
 ### Fixed
-- **Android App Playback**: Fixed two device-only playback failures. The bridge rejected the release payload the app sends back because the app omits fields that are unset, and the CDN answers `429` when a `Referer` header is sent, so the mirrors now carry the MovieBox user agent only. The subtitle track is also served through the default data source so a local file is no longer handed to the HTTP data source.
-- **Hermetic Player Detection Tests**: Isolated Termux opener and playback selection tests from the host `PATH`, graphical-session variables, and `MOVIEBOX_PLAYER` setting.
-- **Test Suite Stability**: Removed two timing-dependent flakes. The HTTP probe fallback test now allows for a loaded runner, and the detached-process test waits until the child owns its session instead of signalling it during the `pre_exec` hook.
 - **Media Playback & Subtitle Engine**:
   - Restored MovieBox playback by resolving streams from the subject details `resourceDetectors` block. The upstream `play-info` endpoint answers with the site trailer instead of the media since 2026-10, which made every title fail with "No stream sources available"; the signed `*.hakunaymatata.com` links are now used instead and the `play-info` path is kept as a fallback.
   - Refreshed MovieBox stream links right before playback, because the `?sign=<token>&t=<expiry>` query is time limited and a listed link can expire before the player starts.
@@ -18,11 +23,10 @@
   - Fixed season batch downloads by arming `is_waiting_for_download_stream` during queue steps, eliminating immediate empty-list download calls that aborted multi-episode queues.
   - Reset the download resolution state lock on 4KHDHub resolver timeouts and errors so failed mirror resolutions do not block subsequent download attempts.
   - Added sequential single-connection fallback to the internal HTTP downloader when multi-worker segmented range requests receive HTTP 403, 429, or network disconnects.
+- **Hermetic Player Detection Tests**: Isolated Termux opener and playback selection tests from the host `PATH`, graphical-session variables, and `MOVIEBOX_PLAYER` setting.
+- **Test Suite Stability**: Removed two timing-dependent flakes. The HTTP probe fallback test now allows for a loaded runner, and the detached-process test waits until the child owns its session instead of signalling it during the `pre_exec` hook.
+
 ### Added
-- **Native Android App**:
-  - Added a native Android application (Jetpack Compose + Media3) built on the shared Rust core engine, with the core split behind a `tui` Cargo feature so the library never links the terminal frontend.
-  - Added a favorites library, a watch history and continue-watching deck, subtitle selection with in-player track switching, a resolution picker, provider switching and a home deck to the Android app.
-  - Added `nativeRecordWatchProgress` to the JNI bridge so the app records watch progress through the core instead of writing the history file itself.
 - **In-App Updater Lifecycle**:
   - Tracked target executable path before staging updates and resolved deleted inode suffixes (` (deleted)`) on Linux to restart the new binary automatically after popup self-update.
   - Scoped Snap package detection to `SNAP_NAME` matching `moviebox-tui` to prevent false positive Snap environment detection when launched inside unrelated host sandboxes.
