@@ -159,8 +159,9 @@ Pre-commit hook (enable once with `git config core.hooksPath .githooks`): runs
 
 ## Repository remotes and upstream
 
-- `origin` is the fork (`Alenbosh/Box`), `upstream` is the original project
-  (`mesamirh/MovieBox-Tui`).
+- `origin` is the fork (`manish0467/MovieBox-Tui`), `upstream` is the original
+  project (`mesamirh/MovieBox-Tui`). A third remote, `suspended-old`, points at a
+  former fork whose account was suspended — do not push to it.
 - Fixes for the terminal client belong in a focused branch that can be opened as
   a pull request against `upstream`. That branch must **not** contain the Android
   app, the agent files or any other unrelated work — a small reviewable diff is
