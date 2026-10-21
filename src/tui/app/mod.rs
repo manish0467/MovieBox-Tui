@@ -361,62 +361,14 @@ impl App {
     }
 
     fn save_tv_playlists(&self) {
-        let Some(path) = crate::config::tv_path() else {
-            return;
-        };
-        let Ok(json) = serde_json::to_string_pretty(&self.state.tv_playlists) else {
-            return;
-        };
+        let playlists = self.state.tv_playlists.clone();
         tokio::task::spawn_blocking(move || {
-            if let Some(app_dir) = path.parent()
-                && std::fs::create_dir_all(app_dir).is_err()
-            {
-                return;
-            }
-            if let Err(error) = crate::cache::atomic_write_file(&path, json.as_bytes()) {
-                log::warn!("failed to save tv playlists: {error}");
-            }
+            crate::config::save_tv_playlists(&playlists);
         });
     }
 
     fn load_tv_playlists_from_config(&mut self) {
-        self.state.tv_playlists.clear();
-        let Some(path) = crate::config::tv_path() else {
-            return;
-        };
-        if path.exists() {
-            match std::fs::read_to_string(&path) {
-                Ok(content) => match serde_json::from_str::<Vec<String>>(&content) {
-                    Ok(list) => {
-                        let mut seen = std::collections::HashSet::new();
-                        self.state.tv_playlists = list
-                            .into_iter()
-                            .map(|item| item.trim().to_string())
-                            .filter(|item| !item.is_empty() && seen.insert(item.clone()))
-                            .collect();
-                    }
-                    Err(e) => {
-                        let stamp = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_secs();
-                        let corrupt_path = path.with_extension(format!("corrupt.{stamp}"));
-                        log::error!(
-                            "failed to parse tv playlists from {} ({e}), rotating to {}",
-                            crate::logging::sanitize_path(&path),
-                            crate::logging::sanitize_path(&corrupt_path)
-                        );
-                        let _ = std::fs::rename(&path, corrupt_path);
-                    }
-                },
-                Err(e) => {
-                    log::warn!(
-                        "failed to read tv playlists from {}: {e}",
-                        crate::logging::sanitize_path(&path)
-                    );
-                }
-            }
-        }
+        self.state.tv_playlists = crate::config::load_tv_playlists();
     }
 
     fn reload_tv_playlists(&self) {

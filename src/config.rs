@@ -335,6 +335,73 @@ pub fn save(config: &Config) {
     }
 }
 
+/// The configured TV playlists (URLs or local paths).
+///
+/// Both frontends share this list, so it lives in the core rather than in the
+/// terminal UI.
+pub fn load_tv_playlists() -> Vec<String> {
+    let Some(path) = tv_path() else {
+        return Vec::new();
+    };
+    if !path.exists() {
+        return Vec::new();
+    }
+    match std::fs::read_to_string(&path) {
+        Ok(content) => match serde_json::from_str::<Vec<String>>(&content) {
+            Ok(list) => {
+                let mut seen = std::collections::HashSet::new();
+                list.into_iter()
+                    .map(|item| item.trim().to_string())
+                    .filter(|item| !item.is_empty() && seen.insert(item.clone()))
+                    .collect()
+            }
+            Err(error) => {
+                let stamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                let corrupt_path = path.with_extension(format!("corrupt.{stamp}"));
+                log::error!(
+                    "failed to parse tv playlists from {} ({error}), rotating to {}",
+                    crate::logging::sanitize_path(&path),
+                    crate::logging::sanitize_path(&corrupt_path)
+                );
+                let _ = std::fs::rename(&path, corrupt_path);
+                Vec::new()
+            }
+        },
+        Err(error) => {
+            log::warn!(
+                "failed to read tv playlists from {}: {error}",
+                crate::logging::sanitize_path(&path)
+            );
+            Vec::new()
+        }
+    }
+}
+
+/// Stores the TV playlist list.
+pub fn save_tv_playlists(playlists: &[String]) {
+    let Some(path) = tv_path() else {
+        return;
+    };
+    if let Some(parent) = path.parent()
+        && let Err(error) = std::fs::create_dir_all(parent)
+    {
+        log::warn!(
+            "failed to create {}: {error}",
+            crate::logging::sanitize_path(parent)
+        );
+        return;
+    }
+    let Ok(json) = serde_json::to_string_pretty(playlists) else {
+        return;
+    };
+    if let Err(error) = crate::cache::atomic_write_file(&path, json.as_bytes()) {
+        log::warn!("failed to save tv playlists: {error}");
+    }
+}
+
 pub fn load_addons() -> Vec<InstalledAddon> {
     let mut list = if let Some(path) = addons_path() {
         if path.exists() {
