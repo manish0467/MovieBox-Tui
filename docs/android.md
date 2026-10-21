@@ -237,7 +237,7 @@ A signed-ready debug APK is published as a GitHub release and can be installed
 right now:
 
 ```bash
-gh release download android-preview-1 --repo Alenbosh/Box --pattern "*.apk"
+gh release download android-preview-1 --repo manish0467/MovieBox-Tui --pattern "*.apk"
 adb install -r moviebox-android-preview.apk
 ```
 

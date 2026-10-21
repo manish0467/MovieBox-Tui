@@ -40,7 +40,7 @@
 The current build works right now, without a toolchain:
 
 ```bash
-gh release download v0.1.28 --repo Alenbosh/Box --pattern "MovieBox_Linux_x64.tar.gz"
+gh release download v0.1.28 --repo manish0467/MovieBox-Tui --pattern "MovieBox_Linux_x64.tar.gz"
 tar xzf MovieBox_Linux_x64.tar.gz
 ./moviebox-tui          # the terminal client
 ./moviebox-cli --help   # the headless CLI
