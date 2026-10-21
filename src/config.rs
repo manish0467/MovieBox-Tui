@@ -403,8 +403,10 @@ mod tests {
 
     #[test]
     fn config_theme_mode_round_trips_and_defaults_when_absent() {
-        let mut config = Config::default();
-        config.theme_mode = "oled".to_string();
+        let config = Config {
+            theme_mode: "oled".to_string(),
+            ..Default::default()
+        };
         let json = serde_json::to_string(&config).expect("serialize");
         let parsed: Config = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(parsed.theme_mode, "oled");
