@@ -14,58 +14,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  android-apk:
-    name: Android debug APK
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      ANDROID_HOME: /usr/local/lib/android/sdk
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      # setup-android cannot install the SDK on its own any more, so the
-      # command line tools are installed explicitly first.
-      - name: Install the Android command line tools
-        run: |
-          set -euo pipefail
-          mkdir -p "$ANDROID_HOME/cmdline-tools"
-          curl -fsSL -o /tmp/cmdline-tools.zip \
-            "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
-          unzip -q /tmp/cmdline-tools.zip -d /tmp/cmdline-tools
-          mv /tmp/cmdline-tools/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
-          # `yes` gets a broken pipe once sdkmanager is done, so pipefail is
-          # disabled for the license prompt.
-          set +o pipefail
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
-          set -o pipefail
-      - name: Install the SDK packages
-        run: |
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0" \
-            "ndk;27.2.12479018"
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.90.0
-          targets: aarch64-linux-android
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-ndk
-      - name: Build Android Rust library
-        run: cargo ndk -t arm64-v8a -o android/app/src/main/jniLibs build --release -p moviebox-android
-      - name: Build debug APK
-        working-directory: android
-        run: ./gradlew assembleDebug
-      - name: Upload the APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: moviebox-android-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-
   hygiene:
     name: Hygiene
     runs-on: ubuntu-latest
@@ -143,38 +91,3 @@ jobs:
         run: cargo nextest run --workspace --all-features --locked
       - name: Smoke-test binary startup
         run: cargo run --bin moviebox-tui --all-features --locked -- --version
-
-  android-bridge:
-    name: Android bridge (aarch64-linux-android)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.90.0
-          targets: aarch64-linux-android
-      - uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: "ci-android-bridge"
-      - name: Install the Android NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r27c
-      - name: Cross-compile the JNI bridge
-        run: |
-          export ANDROID_NDK_HOME=$ANDROID_NDK_ROOT
-          export TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
-          export CC_aarch64_linux_android=$TOOLCHAIN/bin/aarch64-linux-android24-clang
-          export AR_aarch64_linux_android=$TOOLCHAIN/bin/llvm-ar
-          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$TOOLCHAIN/bin/aarch64-linux-android24-clang
-          cargo build -p moviebox-android --target aarch64-linux-android --release --locked
-      - name: Verify the shared library exports the JNI entry points
-        run: |
-          SO=target/aarch64-linux-android/release/libmoviebox_android.so
-          test -f "$SO"
-          for symbol in nativeInit nativeSearch nativeDetails nativeEpisodeStreams nativeResolvePlayback; do
-            nm -D --defined-only "$SO" | grep -q "Java_com_moviebox_app_core_NativeBridge_${symbol}"
-          done
-      - name: Verify the headless core builds without the terminal frontend
-        run: cargo build --no-default-features --locked

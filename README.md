@@ -48,7 +48,7 @@ tar xzf MovieBox_Linux_x64.tar.gz
 
 macOS, Windows, Linux (x64 and arm64) and Android (Termux) archives are on the
 same release, together with a `SHA256SUMS` file. The native Android app is a
-separate APK — see [docs/android.md](docs/android.md).
+separate project — see [docs/android.md](docs/android.md).
 
 ### macOS & Linux
 
@@ -89,7 +89,18 @@ termux-setup-storage
 
 ### Native Android app
 
-MovieBox-TUI also includes a native Android app built with Jetpack Compose and Media3. It uses the shared Rust engine and provides an Android interface for browsing and playback. To build a debug APK from source, build the Rust library for `arm64-v8a` with the Android NDK, then run `./gradlew assembleDebug` from the `android/` directory. See [docs/android.md](docs/android.md) for the full build instructions.
+The native Android app (Jetpack Compose + Media3) lives in its own repository —
+[MovieBox-Android](https://github.com/manish0467/MovieBox-Android) — because it is
+GPL-3.0 and reuses interface work from the Flow app, while this repository stays
+MIT OR Apache-2.0. It runs on the same Rust engine, consumed as a git dependency
+on the `v0.1.28` tag.
+
+```bash
+gh release download android-preview-1 --repo manish0467/MovieBox-Android --pattern "*.apk"
+adb install -r moviebox-android-preview.apk
+```
+
+See [docs/android.md](docs/android.md) for the details.
 
 <details>
 <summary><b>Cargo & Source Build</b></summary>

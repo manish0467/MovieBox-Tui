@@ -128,7 +128,20 @@ Pre-commit hook (enable once with `git config core.hooksPath .githooks`): runs
 8. Core code must not depend on the terminal. Anything the core needs lives in
    `src/util.rs` (durations, language labels, header rules), not in `src/tui/text.rs`.
 
-## Android app specifics
+## The Android app lives in another repository
+
+The app is in [MovieBox-Android](https://github.com/manish0467/MovieBox-Android)
+(GPL-3.0), consuming this crate as a git dependency on the `v0.1.28` tag. Changes
+to the app's Kotlin, its Gradle setup or the JNI bridge belong there, not here.
+What stays here is the **engine**: the provider clients, the aggregation service,
+the cache, the history, the favourites and the download engine.
+
+The bridge contract is mirrored in both places: the Rust side in
+`crates/moviebox-android` of the app repository, the Kotlin side in
+`NativeBridge.kt`. When you add an entry point, change both, in the same pull
+request across the two repositories.
+
+## Android engine specifics (for the app's bridge)
 
 - **JNI contract:** Rust exports `Java_com_moviebox_app_core_NativeBridge_<fn>` in
   `crates/moviebox-android/src/lib.rs`; the Kotlin declarations live in
@@ -138,7 +151,7 @@ Pre-commit hook (enable once with `git config core.hooksPath .githooks`): runs
 - **The bridge is a fixed contract.** 19 entry points: providers, search, suggest,
   homepage, details, episode streams, playback resolution, subtitles, favourites,
   history, watch progress, the five download calls and the poster headers. The
-  download jobs are documented in `docs/android.md`.
+  download jobs are documented in the app repository's `docs/android.md`.
 - **Payload format:** every bridge call returns a JSON envelope
   `{"ok":true,"data":…}` / `{"ok":false,"error":"…"}` (see `ok_envelope` /
   `error_envelope` in `crates/moviebox-android/src/api.rs`). Kotlin decodes it in
@@ -187,10 +200,9 @@ cargo run --bin moviebox-cli -- play <subject-id> --print-url
 
 ## Planned work
 
-`ROADMAP.md` is the single place for what is planned: the Live TV design, the
-player polish list, the settings screen, release signing and the Stremio addon
-work. Read it before starting anything that is not already listed as shipped,
-and move a feature there instead of half-implementing it.
+`ROADMAP.md` points at the planned work for this repository; the app's roadmap
+is in the app repository. Read it before starting anything that is not already
+listed as shipped, and move a feature there instead of half-implementing it.
 
 ## Style, commits and scope
 

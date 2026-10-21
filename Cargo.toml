@@ -7,8 +7,6 @@ exclude = [
     ".github/",
     ".githooks/",
     ".cargo/",
-    "android/",
-    "crates/",
     "install.sh",
     "install.ps1",
     "CONTRIBUTING.md",
@@ -35,12 +33,6 @@ keywords = ["tui", "moviebox", "streaming", "movies", "cli"]
 categories = ["command-line-utilities", "multimedia"]
 readme = "README.md"
 rust-version = "1.90.0"
-
-[workspace]
-members = ["crates/moviebox-android"]
-# Only the published crate is a default member: the Android bridge depends on
-# it by path and must not be packaged against the registry release.
-default-members = ["."]
 
 [features]
 default = ["tui"]# The terminal frontend. Disable it to build a headless core library
