@@ -209,6 +209,9 @@ pub struct AppState {
 
     pub show_theme_popup: bool,
     pub active_theme_kind: String,
+    /// The Android app's colour scheme, preserved untouched by the terminal
+    /// client so both frontends can share one config file.
+    pub theme_mode: String,
     pub theme_is_auto: bool,
     pub original_theme_kind: Option<String>,
     pub theme_list_state: ListState,
@@ -383,6 +386,7 @@ impl Default for AppState {
             tick_count: 0,
             poster_image: None,
             active_theme_kind: String::new(),
+            theme_mode: crate::config::default_theme_mode(),
             theme_is_auto: true,
             original_theme_kind: None,
             show_theme_popup: false,

@@ -237,6 +237,7 @@ impl App {
             state.active_provider = crate::providers::models::ProviderKind::MovieBox;
         }
         state.active_theme_kind = config.active_theme;
+        state.theme_mode = config.theme_mode;
         state.default_player = config.default_player;
         state.vlc_path = config.vlc_path;
         state.mpv_path = config.mpv_path;
@@ -328,6 +329,7 @@ impl App {
             active_mode: active_mode.to_string(),
             active_provider: self.state.active_provider,
             active_theme: self.state.active_theme_kind.clone(),
+            theme_mode: self.state.theme_mode.clone(),
             moviebox_enabled: self.state.moviebox_enabled,
             fourkhdhub_enabled: self.state.fourkhdhub_enabled,
             dramachi_enabled: self.state.dramachi_enabled,

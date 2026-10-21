@@ -12,6 +12,11 @@ pub struct Config {
     pub active_mode: String,
     pub active_provider: ProviderKind,
     pub active_theme: String,
+    /// The colour scheme of the Android app: `system`, `light`, `dark`, `oled`,
+    /// `blue`, `green` or `rose`. The terminal client uses `active_theme` for
+    /// its own palettes, and the two frontends keep separate config files.
+    #[serde(default = "default_theme_mode")]
+    pub theme_mode: String,
     pub moviebox_enabled: bool,
     pub fourkhdhub_enabled: bool,
     pub dramachi_enabled: bool,
@@ -35,6 +40,7 @@ impl Default for Config {
             active_mode: "streaming".to_string(),
             active_provider: ProviderKind::MovieBox,
             active_theme: String::new(),
+            theme_mode: default_theme_mode(),
             moviebox_enabled: true,
             fourkhdhub_enabled: true,
             dramachi_enabled: true,
@@ -54,6 +60,11 @@ impl Default for Config {
 }
 
 pub const APP_NAME: &str = "moviebox-tui";
+
+/// The default colour scheme of the Android app: follow the system.
+pub fn default_theme_mode() -> String {
+    "system".to_string()
+}
 
 static TEST_SANDBOX_DIR: std::sync::LazyLock<Option<PathBuf>> = std::sync::LazyLock::new(|| {
     let is_test_binary = cfg!(test)
@@ -383,6 +394,27 @@ pub fn save_addons(addons: &[InstalledAddon]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn config_theme_mode_defaults_to_system() {
+        let config = Config::default();
+        assert_eq!(config.theme_mode, "system");
+    }
+
+    #[test]
+    fn config_theme_mode_round_trips_and_defaults_when_absent() {
+        let mut config = Config::default();
+        config.theme_mode = "oled".to_string();
+        let json = serde_json::to_string(&config).expect("serialize");
+        let parsed: Config = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(parsed.theme_mode, "oled");
+
+        // A config written by an older version has no theme_mode key.
+        let mut value: serde_json::Value = serde_json::from_str(&json).expect("value");
+        value.as_object_mut().expect("object").remove("theme_mode");
+        let parsed: Config = serde_json::from_value(value).expect("deserialize legacy");
+        assert_eq!(parsed.theme_mode, "system");
+    }
 
     #[test]
     fn config_defaults_and_serde() {

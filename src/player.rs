@@ -2135,6 +2135,9 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn test_configure_detached_process_survives_sighup() {
+        // Spawning a process needs the real PATH, so this must not overlap
+        // with the tests that replace it.
+        let _lock = ENV_MUTEX.lock().unwrap();
         let mut cmd = std::process::Command::new("sh");
         cmd.args(["-c", "sleep 0.2"]);
         cmd.stdin(std::process::Stdio::null());
