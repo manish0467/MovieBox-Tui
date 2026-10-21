@@ -219,9 +219,9 @@ Kotlin player applies whatever the bridge returns through
 | Multi-resolution picker | ✅ | ✅ |
 | Provider switching & home deck | ✅ | ✅ |
 | Downloads | ✅ | ✅ |
-| Live TV / M3U | ✅ | ⏳ planned |
-| Stremio addons | ✅ | ⏳ planned |
-| Self-update | ✅ | ⏳ Play / sideload |
+| Live TV / M3U | ✅ | 📋 [roadmap](../ROADMAP.md#next--live-tv) |
+| Stremio addons | ✅ | 📋 [roadmap](../ROADMAP.md#later) |
+| Self-update | ✅ | 📋 Play / sideload |
 
 ## Distribution
 

@@ -189,6 +189,11 @@ Review [CONTRIBUTING.md](CONTRIBUTING.md) before submitting pull requests. Repor
 
 Zero telemetry, analytics, or user tracking. History, favorites, and config remain local.
 
+## Roadmap
+
+Shipped work and what comes next — including the Live TV design — are tracked
+in [ROADMAP.md](ROADMAP.md).
+
 ## License
 
 Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE).

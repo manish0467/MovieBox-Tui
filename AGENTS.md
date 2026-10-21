@@ -185,6 +185,13 @@ cargo run --bin moviebox-cli -- play <subject-id> --print-url
 `--json` prints a single JSON document, `--print-url` hands out a freshly signed link
 (the CDN links expire). See `docs/cli.md`.
 
+## Planned work
+
+`ROADMAP.md` is the single place for what is planned: the Live TV design, the
+player polish list, the settings screen, release signing and the Stremio addon
+work. Read it before starting anything that is not already listed as shipped,
+and move a feature there instead of half-implementing it.
+
 ## Style, commits and scope
 
 - Follow idiomatic Rust and `rustfmt` defaults. Do not hand-format.
