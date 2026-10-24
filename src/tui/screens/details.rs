@@ -4,7 +4,7 @@ pub(crate) use crate::tui::widgets::{
     resolution_badge_spans,
 };
 use crate::tui::{
-    state::AppState,
+    state::{AppState, DrawEffects, PosterEncodeRequest, PosterProtocolState, PosterTarget},
     theme::{Theme, theme_color},
 };
 use ratatui::{
@@ -327,7 +327,8 @@ fn compute_synopsis_area(
     Rect::new(meta_area.x, abs_y, meta_area.width, height)
 }
 
-pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) {
+pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) -> DrawEffects {
+    let mut effects = DrawEffects::default();
     let modal_active = state.has_active_modal();
     let layout = details_screen_layout(area, state.selected_details.as_ref());
     let tier = layout.tier;
@@ -395,7 +396,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) 
                     .alignment(Alignment::Center);
 
                 frame.render_widget(error_p, error_area);
-                return;
+                return effects;
             }
 
             let spinner = stream_loading_spinner(state.tick_count, state.basic_terminal);
@@ -439,7 +440,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) 
             let loading_p = Paragraph::new(Line::from(loading_spans))
                 .alignment(ratatui::layout::Alignment::Center);
             frame.render_widget(loading_p, vertical_chunks[1]);
-            return;
+            return effects;
         }
     };
 
@@ -567,38 +568,43 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) 
 
         let poster_area = chunks[0];
         if let Some(img) = &state.poster_image {
-            if !modal_active {
-                if let Some(picker) = &mut state.image_picker {
-                    let img_width = poster_area.width;
-                    let img_height = poster_area.height;
-                    if img_width > 0 && img_height > 0 {
-                        crate::tui::clear_area(frame, poster_area, theme);
-                        if let Some((proto_area, proto)) = &mut state.poster_protocol {
-                            if proto_area.width == img_width && proto_area.height == img_height {
-                                let image_widget = ratatui_image::Image::new(proto);
-                                frame.render_widget(image_widget, poster_area);
-                            } else if let Ok(protocol) = picker.new_protocol(
-                                (**img).clone(),
-                                poster_area.into(),
-                                ratatui_image::Resize::Fit(None),
-                            ) {
-                                state.poster_protocol = Some((poster_area, protocol));
-                                if let Some((_, p)) = &state.poster_protocol {
-                                    let image_widget = ratatui_image::Image::new(p);
-                                    frame.render_widget(image_widget, poster_area);
-                                }
-                            }
-                        } else if let Ok(protocol) = picker.new_protocol(
-                            (**img).clone(),
-                            poster_area.into(),
-                            ratatui_image::Resize::Fit(None),
-                        ) {
-                            state.poster_protocol = Some((poster_area, protocol));
-                            if let Some((_, p)) = &state.poster_protocol {
-                                let image_widget = ratatui_image::Image::new(p);
-                                frame.render_widget(image_widget, poster_area);
-                            }
-                        }
+            if !modal_active
+                && state.image_picker.is_some()
+                && poster_area.width > 0
+                && poster_area.height > 0
+            {
+                crate::tui::clear_area(frame, poster_area, theme);
+                if state.details_poster_needs_encoding(poster_area) {
+                    effects.poster_requests.push(PosterEncodeRequest {
+                        target: PosterTarget::Details,
+                        area: poster_area,
+                        image: std::sync::Arc::clone(img),
+                    });
+                }
+                let is_pending = matches!(
+                    &state.poster_protocol,
+                    Some((cached, PosterProtocolState::Pending))
+                        if cached.width == poster_area.width
+                            && cached.height == poster_area.height
+                );
+                match &state.poster_protocol {
+                    Some((cached, PosterProtocolState::Ready(proto)))
+                        if cached.width == poster_area.width
+                            && cached.height == poster_area.height =>
+                    {
+                        let image_widget = ratatui_image::Image::new(proto);
+                        frame.render_widget(image_widget, poster_area);
+                    }
+                    _ => {
+                        render_poster_placeholder(
+                            frame,
+                            poster_area,
+                            theme,
+                            state.basic_terminal,
+                            is_pending,
+                            state.tick_count,
+                            modal_active,
+                        );
                     }
                 }
             }
@@ -1615,6 +1621,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) 
             state.basic_terminal,
         );
     }
+    effects
 }
 
 fn clean_language_name(value: &str) -> String {

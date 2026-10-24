@@ -1,6 +1,8 @@
 use crate::tui::widgets::render_poster_placeholder;
 use crate::tui::{
-    state::{AppState, InputMode},
+    state::{
+        AppState, DrawEffects, InputMode, PosterEncodeRequest, PosterProtocolState, PosterTarget,
+    },
     theme::Theme,
 };
 use ratatui::{
@@ -1370,7 +1372,8 @@ fn home_bottom_bar_spans(
     bar_spans
 }
 
-pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) {
+pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) -> DrawEffects {
+    let mut effects = DrawEffects::default();
     let view = search_view_state(state);
     let search_bar_area;
 
@@ -1500,7 +1503,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) 
     } else {
         if state.is_loading && state.search_results.is_empty() {
             render_search_state(frame, area, state, theme, SearchViewState::Loading);
-            return;
+            return effects;
         }
 
         let (search_bar_area_calc, results_chunk) = search_results_layout(area);
@@ -1548,7 +1551,9 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) 
             } else {
                 0
             };
-            state.last_result_metrics = Some(metrics);
+            if state.last_result_metrics != Some(metrics) {
+                effects.result_metrics = Some(metrics);
+            }
             let row_height = metrics.row_height;
             frame.render_widget(list_block, results_area);
 
@@ -1596,26 +1601,46 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) 
                 if state.image_supported && poster_area.width > 0 {
                     if let Some(img) = state.search_posters.peek(&res.id) {
                         let target_dims = (poster_area.width, state.poster_rows);
-                        let needs_protocol =
-                            state.search_poster_protocols.peek(&res.id).map(|(d, _)| *d)
-                                != Some(target_dims);
-                        if needs_protocol {
-                            if let Some(picker) = &mut state.image_picker {
-                                let size = ratatui::layout::Size::new(target_dims.0, target_dims.1);
-                                if let Ok(proto) = picker.new_protocol(
-                                    (**img).clone(),
-                                    size,
-                                    ratatui_image::Resize::Fit(None),
-                                ) {
-                                    state
-                                        .search_poster_protocols
-                                        .put(res.id.clone(), (target_dims, proto));
+                        if state.image_picker.is_some()
+                            && state.search_poster_needs_encoding(&res.id, target_dims)
+                        {
+                            effects.poster_requests.push(PosterEncodeRequest {
+                                target: PosterTarget::Search(res.id.clone()),
+                                area: Rect::new(0, 0, target_dims.0, target_dims.1),
+                                image: std::sync::Arc::clone(img),
+                            });
+                        }
+                        match state.search_poster_protocols.peek(&res.id) {
+                            Some((cached_dims, PosterProtocolState::Ready(proto)))
+                                if *cached_dims == target_dims =>
+                            {
+                                if !modal_active {
+                                    frame.render_widget(ratatui_image::Image::new(proto), p_area);
                                 }
                             }
-                        }
-                        if let Some((_, proto)) = state.search_poster_protocols.peek(&res.id) {
-                            if !state.has_active_modal() {
-                                frame.render_widget(ratatui_image::Image::new(proto), p_area);
+                            Some((cached_dims, PosterProtocolState::Pending))
+                                if *cached_dims == target_dims =>
+                            {
+                                render_poster_placeholder(
+                                    frame,
+                                    p_area,
+                                    theme,
+                                    state.basic_terminal,
+                                    true,
+                                    state.tick_count,
+                                    modal_active,
+                                );
+                            }
+                            _ => {
+                                render_poster_placeholder(
+                                    frame,
+                                    p_area,
+                                    theme,
+                                    state.basic_terminal,
+                                    false,
+                                    state.tick_count,
+                                    modal_active,
+                                );
                             }
                         }
                     } else {
@@ -2299,6 +2324,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &mut AppState, theme: &Theme) 
             state.basic_terminal,
         );
     }
+    effects
 }
 fn suggestion_source_badge<'a>(
     suggestion: &str,
