@@ -95,9 +95,9 @@ impl App {
 
         if self.state.input_mode != InputMode::Editing {
             if let Some((version, _)) = &self.state.update_available {
-                let env = std::env::current_exe()
-                    .as_deref()
-                    .map(crate::updater::apply::detect_environment)
+                let env = self
+                    .state
+                    .update_environment
                     .unwrap_or(crate::updater::apply::InstallationEnvironment::DirectReplace);
 
                 match key.code {

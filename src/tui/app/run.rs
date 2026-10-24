@@ -408,7 +408,8 @@ impl App {
             | Action::SettingsResetDownloadDir
             | Action::ToggleProvider(..)
             | Action::CheckBdixNetwork
-            | Action::BdixProbeResult { .. } => {
+            | Action::BdixProbeResult { .. }
+            | Action::UpdateEnvironmentDetected(..) => {
                 self.handle_system(action).await;
             }
 
@@ -1175,9 +1176,9 @@ impl App {
             use ratatui::text::{Line, Span};
             use ratatui::widgets::Paragraph;
 
-            let env = std::env::current_exe()
-                .ok()
-                .map(|p| crate::updater::apply::detect_environment(&p))
+            let env = self
+                .state
+                .update_environment
                 .unwrap_or(crate::updater::apply::InstallationEnvironment::DirectReplace);
 
             let layout = crate::tui::overlay::update_modal_layout_with_env(

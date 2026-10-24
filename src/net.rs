@@ -194,6 +194,21 @@ pub fn open_external_url(url: &str) -> std::io::Result<()> {
     if crate::config::is_test_environment() {
         return Ok(());
     }
+    // Launching a browser spawns a process; keep that off the caller's async
+    // worker when a runtime exists (the terminal UI's event loop). Callers
+    // without a runtime keep the synchronous behaviour.
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        let target = url.to_string();
+        handle.spawn_blocking(move || {
+            if let Err(error) = open::that(&target) {
+                log::warn!(
+                    "failed to open {}: {error}",
+                    crate::logging::sanitize_url(&target)
+                );
+            }
+        });
+        return Ok(());
+    }
     open::that(url)
 }
 #[cfg(test)]

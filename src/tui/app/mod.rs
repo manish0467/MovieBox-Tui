@@ -273,6 +273,17 @@ impl App {
             log::warn!("4KHDHub client unavailable; provider will be disabled");
         }
 
+        // Route the domain savers (config, history, favourites, addons, TV
+        // playlists) through the deferred writer so nothing they persist
+        // blocks the event loop. Tests keep the synchronous behaviour.
+        if !crate::config::is_test_environment()
+            && let Ok(handle) = tokio::runtime::Handle::try_current()
+        {
+            let (sink, receiver) = mpsc::unbounded_channel();
+            crate::persistence::install_deferred_sink(sink);
+            handle.spawn(crate::persistence::run_writer(receiver));
+        }
+
         let mut app = Self {
             theme,
             state,
@@ -281,6 +292,7 @@ impl App {
             action_receiver,
             request_tasks: RequestTaskHandles::default(),
         };
+        app.spawn_update_environment_probe();
         if app.state.is_tv_mode {
             app.load_tv_playlists_from_config();
             app.reload_tv_playlists();
@@ -316,6 +328,26 @@ impl App {
         context.generation == self.state.provider_generation
             && (context.provider == self.state.active_provider
                 || context.provider == self.provider_for_subject(subject_id))
+    }
+
+    /// Detects the installation environment (Homebrew, Flatpak, …) once per
+    /// session on a blocking task; the update modal reads the cached value
+    /// instead of probing the filesystem on every draw, key and click.
+    fn spawn_update_environment_probe(&self) {
+        if self.state.update_environment.is_some()
+            || crate::config::is_test_environment()
+            || tokio::runtime::Handle::try_current().is_err()
+        {
+            return;
+        }
+        let sender = self.action_sender.clone();
+        tokio::task::spawn_blocking(move || {
+            let env = std::env::current_exe()
+                .as_deref()
+                .map(crate::updater::apply::detect_environment)
+                .unwrap_or(crate::updater::apply::InstallationEnvironment::DirectReplace);
+            let _ = sender.send(Action::UpdateEnvironmentDetected(env));
+        });
     }
 
     fn persist_config(&self) {
@@ -361,10 +393,7 @@ impl App {
     }
 
     fn save_tv_playlists(&self) {
-        let playlists = self.state.tv_playlists.clone();
-        tokio::task::spawn_blocking(move || {
-            crate::config::save_tv_playlists(&playlists);
-        });
+        crate::config::save_tv_playlists(&self.state.tv_playlists);
     }
 
     fn load_tv_playlists_from_config(&mut self) {

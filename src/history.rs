@@ -269,7 +269,7 @@ impl HistoryManager {
     pub fn save(&self) {
         if let Some(path) = crate::config::history_path() {
             if let Ok(content) = serde_json::to_string(self) {
-                if let Err(error) = crate::cache::atomic_write_file(&path, content.as_bytes()) {
+                if let Err(error) = crate::persistence::write(&path, content.as_bytes()) {
                     log::warn!("failed to save watch history: {error}");
                 }
             }

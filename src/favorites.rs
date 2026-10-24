@@ -111,7 +111,7 @@ impl FavoritesManager {
 
     pub fn save_to_path(&self, path: &Path) {
         if let Ok(content) = serde_json::to_string(self) {
-            if let Err(error) = crate::cache::atomic_write_file(path, content.as_bytes()) {
+            if let Err(error) = crate::persistence::write(path, content.as_bytes()) {
                 log::warn!("failed to save favorites: {error}");
             }
         }
