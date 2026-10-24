@@ -32,7 +32,7 @@ mpv --autofit=WxH --geometry=50%:50% --hwdec=auto-safe --stream-buffer-size=4M -
 
 ### VLC
 ```bash
-vlc --width=W --height=H --play-and-exit --no-one-instance --network-caching=3000 --file-caching=3000 --http-reconnect --adaptive-logic=predictive [OPTIONS] <url>
+vlc --width=W --height=H --no-one-instance --network-caching=3000 --file-caching=3000 --http-reconnect --adaptive-logic=predictive [OPTIONS] <url>
 ```
 - **Headers**: Mapped to `--http-user-agent` and `--http-referrer`.
 - **DASH & CloudFront Streams**: Cookie-authenticated and DASH `.mpd` streams route through the local `StreamRelay` proxy sidecar (`127.0.0.1:<port>`) with HTTP/1.1 persistent connections (`Keep-Alive`), parallel `95 KB` `Range`-chunked `.m4s` segment fetching, lookahead segment prefetching (`N+1..N+3`), and resolution representation capping.

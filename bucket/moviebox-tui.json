@@ -21,10 +21,10 @@
   "autoupdate": {
     "architecture": {
       "64bit": {
-        "url": "https://github.com/mesamirh/MovieBox-Tui/releases/download/v$version/MovieBox_Windows_x64.zip"
+        "url": "https://github.com/manish0467/MovieBox-Tui/releases/download/v$version/MovieBox_Windows_x64.zip"
       },
       "arm64": {
-        "url": "https://github.com/mesamirh/MovieBox-Tui/releases/download/v$version/MovieBox_Windows_arm64.zip"
+        "url": "https://github.com/manish0467/MovieBox-Tui/releases/download/v$version/MovieBox_Windows_arm64.zip"
       }
     },
     "hash": {

@@ -9,6 +9,18 @@
   - Added `nativeRecordWatchProgress` to the JNI bridge so the app records watch progress through the core instead of writing the history file itself.
   - Added downloads: a download action per source, a downloads tab with live progress, speed, pause, resume, remove and open. The core download engine (ranges, resume, segmented) is exposed as jobs over the bridge, and the finished file is indexed into the system media store.
 
+### Fixed
+- **Media Playback & Subtitle Engine**:
+  - Removed `--play-and-exit` from VLC player invocations so the player stays active across adaptive and HLS chunk transitions.
+- **Providers & Stream Resolution**:
+  - Recovered playable signed MP4 streams via `/resource-position/v2` when MovieBox returns deprecation notice clips, querying exact seasons and episodes and reporting accurate file sizes.
+  - Stripped the DASH `Referer` header on direct MP4 streams to prevent CDN HTTP 429 throttling.
+  - Bumped the MovieBox stream cache schema to `v2_` to discard stale cached deprecation notices.
+
+### Changed
+- **Dependencies & Build Infrastructure**:
+  - Upgraded `zip` to 9.0.5, `rustls` to 0.23.46, `quinn-proto` to 0.11.19, `rustls-webpki` to 0.103.16, and `webpki-roots` to 1.0.10, resolving RustSec security advisories.
+
 ## [0.1.28] - 2026-10-20
 
 ### Added

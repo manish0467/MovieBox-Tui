@@ -40,7 +40,7 @@ pub trait Provider: Send + Sync {
 
 New providers implement `Provider` (and optionally `ReleaseProvider` for multi-mirror streams), then register in `src/service.rs`. Responses are automatically cached as MessagePack envelopes.
 
-### MovieBox CDN Manifest Resolution
+### MovieBox CDN Manifest & Failover Resolution
 
 MovieBox CDN stream entries parse signed `CloudFront-Policy` and `Edge-Cache-Cookie` tokens to find stream roots. The manifest resolver accepts only `/dash/` resources. Unhosted legacy `/hls/` cookie targets are dropped to prevent 404 failures during playback or downloads.
 
@@ -74,3 +74,14 @@ Two consequences worth knowing:
   `resolutionList`, so no direct link exists. MovieBox then reports that it has no
   direct source for the title; use **4KHDHub** or **Dramachi** for series.
 
+### MovieBox Placeholder Recovery (resource-position)
+
+When the detector pass yields no playable link, `episode_streams()` also queries
+`play-info` and the exact-season `resource/v2` listing. If a resource item still
+points at a deprecation notice, it calls the `/resource-position/v2` failover
+endpoint with the subject, resource ID, failed URL, and `failCode=404`, then uses
+the recovered signed MP4. The recovered mirror is marked as a direct file and is
+sent with the MovieBox user agent only; the DASH `Referer` is omitted because
+direct MP4s answer HTTP 429. The recovered file's real size replaces the
+placeholder size, and the stream cache schema is bumped so stale notice entries
+are not reused.
