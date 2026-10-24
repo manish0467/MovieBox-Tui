@@ -22,7 +22,7 @@ fi
 echo "${GREEN}✅ Code formatting is perfect.${NC}\n"
 
 echo "${YELLOW}🦀 2/3 Checking Linter Warnings (cargo clippy)...${NC}"
-if ! cargo clippy --workspace --all-targets --locked -- -D warnings; then
+if ! cargo clippy --workspace --all-targets --all-features --locked -- -D warnings; then
     echo "\n${RED}❌ Error: Clippy found warnings or errors in your code!${NC}"
     echo "${RED}Please fix the warnings above before committing.${NC}"
     exit 1
@@ -37,6 +37,8 @@ if command -v mdbook >/dev/null 2>&1; then
         exit 1
     fi
     echo "${GREEN}✅ Documentation build passed.${NC}\n"
+else
+    echo "${YELLOW}⚠️  mdbook not found — skipping the documentation build check.${NC}\n"
 fi
 
 echo "${GREEN}🎉 All checks passed! Committing...${NC}"
