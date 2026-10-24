@@ -89,6 +89,10 @@ jobs:
           FORMULA_FILE="Formula/moviebox-tui.rb"
           VERSION="${{ steps.release.outputs.version }}"
           sed -i "s/VERSION = \".*\"/VERSION = \"$VERSION\"/" "$FORMULA_FILE"
+          # Rewrite the release URLs to this repository so the formula stays
+          # self-consistent wherever the workflow runs (the URL lines used to
+          # keep whatever origin committed them).
+          sed -i "s|url \"https://github.com/[^/]*/[^/]*/releases|url \"https://github.com/${{ github.repository }}/releases|" "$FORMULA_FILE"
           sed -i "s/MACOS_SHA256 = \".*\"/MACOS_SHA256 = \"${{ steps.release.outputs.macos_sha }}\"/" "$FORMULA_FILE"
           sed -i "s/LINUX_X64_SHA256 = \".*\"/LINUX_X64_SHA256 = \"${{ steps.release.outputs.linux_x64_sha }}\"/" "$FORMULA_FILE"
           sed -i "s/LINUX_ARM64_SHA256 = \".*\"/LINUX_ARM64_SHA256 = \"${{ steps.release.outputs.linux_arm64_sha }}\"/" "$FORMULA_FILE"
