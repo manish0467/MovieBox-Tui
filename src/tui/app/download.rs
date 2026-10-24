@@ -3,7 +3,7 @@ use crate::providers::models::ProviderKind;
 use crate::tui::{action::Action, overlay::NotificationKind, state::Screen};
 
 impl App {
-    pub(super) fn start_resilient_download(
+    pub(super) async fn start_resilient_download(
         &mut self,
         subtitle_url: Option<String>,
         link: Option<String>,
@@ -64,14 +64,28 @@ impl App {
             episode,
         );
         let destination = target_dir.join(format!("{base_name}.{extension}"));
+
+        let probe_base_dir = base_dir.clone();
+        let probe_target_dir = target_dir.clone();
+        let probe_base_name = base_name.clone();
+        let probe = match tokio::task::spawn_blocking(move || {
+            probe_download_target(&probe_base_dir, &probe_target_dir, &probe_base_name)
+        })
+        .await
         {
-            let resolved_base =
-                normalize_unc(std::fs::canonicalize(&base_dir).unwrap_or(base_dir.clone()));
-            let resolved_dest = normalize_unc(
-                std::fs::canonicalize(target_dir.parent().unwrap_or(&target_dir))
-                    .unwrap_or(target_dir.clone()),
-            );
-            if !resolved_dest.starts_with(&resolved_base) {
+            Ok(probe) => probe,
+            Err(error) => {
+                log::error!("download destination probe failed: {error}");
+                self.state.notify(
+                    NotificationKind::Error,
+                    "Download unavailable",
+                    "Could not inspect the download destination.",
+                );
+                return;
+            }
+        };
+        match probe {
+            DownloadTargetProbe::OutsideBase => {
                 self.state.notify(
                     NotificationKind::Warning,
                     "Download blocked",
@@ -79,15 +93,16 @@ impl App {
                 );
                 return;
             }
-        }
-        if is_media_already_downloaded(&target_dir, &base_name) {
-            self.state.is_waiting_for_download_stream = false;
-            self.state.notify(
-                NotificationKind::Warning,
-                "Already downloaded",
-                format!("{base_name} already exists on disk."),
-            );
-            return;
+            DownloadTargetProbe::AlreadyDownloaded => {
+                self.state.is_waiting_for_download_stream = false;
+                self.state.notify(
+                    NotificationKind::Warning,
+                    "Already downloaded",
+                    format!("{base_name} already exists on disk."),
+                );
+                return;
+            }
+            DownloadTargetProbe::Ready => {}
         }
 
         let sub_lang = self
@@ -678,7 +693,8 @@ impl App {
             }
             Action::StartDownload(subtitle_url, link, headers, max_height) => {
                 self.state.is_resolving_playback = false;
-                self.start_resilient_download(subtitle_url, link, headers, max_height);
+                self.start_resilient_download(subtitle_url, link, headers, max_height)
+                    .await;
                 return None;
             }
             Action::DownloadEpisode => {
@@ -999,6 +1015,32 @@ fn subtitle_language_from_url(url: &str) -> Option<&'static str> {
     } else {
         None
     }
+}
+
+enum DownloadTargetProbe {
+    Ready,
+    OutsideBase,
+    AlreadyDownloaded,
+}
+
+fn probe_download_target(
+    base_dir: &std::path::Path,
+    target_dir: &std::path::Path,
+    base_name: &str,
+) -> DownloadTargetProbe {
+    let resolved_base =
+        normalize_unc(std::fs::canonicalize(base_dir).unwrap_or_else(|_| base_dir.to_path_buf()));
+    let resolved_dest = normalize_unc(
+        std::fs::canonicalize(target_dir.parent().unwrap_or(target_dir))
+            .unwrap_or_else(|_| target_dir.to_path_buf()),
+    );
+    if !resolved_dest.starts_with(&resolved_base) {
+        return DownloadTargetProbe::OutsideBase;
+    }
+    if is_media_already_downloaded(target_dir, base_name) {
+        return DownloadTargetProbe::AlreadyDownloaded;
+    }
+    DownloadTargetProbe::Ready
 }
 
 fn is_media_already_downloaded(target_dir: &std::path::Path, base_name: &str) -> bool {
