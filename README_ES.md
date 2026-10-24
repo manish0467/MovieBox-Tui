@@ -78,7 +78,13 @@ termux-setup-storage
 
 ### Aplicación nativa para Android
 
-MovieBox-TUI también incluye una aplicación nativa para Android creada con Jetpack Compose y Media3. Comparte el motor Rust y ofrece navegación y reproducción en Android. Para generar un APK de depuración desde el código fuente, compila la biblioteca Rust para `arm64-v8a` con Android NDK y luego ejecuta `./gradlew assembleDebug` dentro del directorio `android/`.
+La aplicación nativa para Android (Jetpack Compose + Media3) vive en su propio
+repositorio — [MovieBox-Android](https://github.com/manish0467/MovieBox-Android) —
+porque es GPL-3.0 y reutiliza el trabajo de interfaz de la aplicación Flow, mientras
+que este repositorio sigue siendo MIT OR Apache-2.0. Se ejecuta sobre el mismo motor
+Rust, consumido como dependencia git en la etiqueta `v0.1.28`.
+
+Consulta [docs/android.md](docs/android.md) para más detalles.
 
 <details>
 <summary><b>Instalación con Cargo o compilación desde el código fuente</b></summary>

@@ -12,5 +12,3 @@ Quick rules:
   `src/tui/app/`; never block the event loop.
 - Replay `User-Agent`, `Referer` and the CloudFront cookie on every stream request.
 - No panics on network or user-input paths. Zero telemetry. Conventional Commits.
-- Four `player::tests::*` / playback tests fail on machines with `mpv`/`vlc` installed;
-  that is pre-existing.

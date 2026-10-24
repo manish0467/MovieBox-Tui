@@ -28,7 +28,7 @@ truth; the agent-specific files (`CLAUDE.md`, `GEMINI.md`, `CONVENTIONS.md`,
 - Scoped rules live in `.agents/rules/*.md` and **require** YAML frontmatter with a
   valid `trigger` (`always_on`, `model_decision`, `glob` or `manual`); a file without
   frontmatter is silently discarded.
-  - `.agents/rules/android.md` — `model_decision`: the JNI bridge, Gradle/Compose build.
+  - `.agents/rules/android.md` — `model_decision`: the separate Android app and the engine boundary.
   - `.agents/rules/terminal-ui.md` — `glob` on `src/tui/**, src/player.rs, src/proxy.rs, src/updater/**`.
   - `.agents/rules/docs-and-release.md` — `model_decision`: changelog, mdBook, packaging.
 - Multi-step workflows are skills: `.agents/skills/moviebox-release/SKILL.md`.
@@ -37,8 +37,8 @@ truth; the agent-specific files (`CLAUDE.md`, `GEMINI.md`, `CONVENTIONS.md`,
 
 ## What this repository is
 
-MovieBox-Tui is a Rust terminal client (and now a native Android app) for finding,
-downloading and streaming movies, TV series, anime and live TV from several providers
+MovieBox-Tui is a Rust terminal client for finding, downloading and streaming movies,
+TV series, anime and live TV from several providers
 (MovieBox, 4KHDHub, Dramachi, BDIX mirrors, community Stremio addons, M3U/IPTV playlists).
 
 - Rust **1.90+**, edition **2024**. License **MIT OR Apache-2.0**. Zero telemetry.
@@ -51,8 +51,6 @@ src/                      Core engine (always compiled) + terminal frontend (tui
   cache.rs config.rs download.rs favorites.rs history.rs logging.rs
   models.rs net.rs providers/ service.rs util.rs        <-- core: no UI dependency
   player.rs proxy.rs tui/ updater.rs main.rs             <-- `tui` feature only
-crates/moviebox-android/  JNI bridge (cdylib) used by the Android app
-android/                  Gradle + Compose + Media3 Android app
 docs/                     mdBook source (book.toml at the repo root)
 tests/                    Integration tests
 install.sh install.ps1 Formula/ bucket/   Distribution packaging
@@ -81,15 +79,9 @@ cargo nextest run --workspace --all-features  # CI parity (install cargo-nextest
 cargo fmt --all                              # format (rustfmt defaults)
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo audit                                  # dependency audit
-cargo package --locked                        # publishes the root crate only
+cargo package --locked                        # packages the crate
 mdbook build                                 # docs (copy CHANGELOG/CONTRIBUTING into docs/ first)
 ```
-
-The workspace has two members: the published crate and `crates/moviebox-android`
-(the JNI bridge). The bridge depends on the published crate **by path**, so it
-must never be packaged against the registry release — that is why
-`default-members` is only the root package. Use `--workspace` for check, clippy
-and test so the bridge is covered.
 
 Pre-commit hook (enable once with `git config core.hooksPath .githooks`): runs
 `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings` and
@@ -100,11 +92,9 @@ Pre-commit hook (enable once with `git config core.hooksPath .githooks`): runs
 - `tui` (**default**) — the terminal frontend: `tui`, `player`, `proxy`, `updater` modules
   and the `ratatui`/`crossterm`/`image`/`lru`/`unicode-*`/`tar`/`zip`/`sha2`/`semver`
   dependencies.
-- `cargo build --no-default-features` produces the headless engine only. The Android
-  bridge depends on the crate with `default-features = false`, so **the shared library
-  must never link the terminal frontend**.
-- Workspace: root package + `crates/moviebox-android` (only the root package is a
-  default member, see the build commands above).
+- `cargo build --no-default-features` produces the headless engine only. The separate
+  Android app depends on the crate with `default-features = false`, so **the shared
+  library must never link the terminal frontend**.
 
 ## Architecture invariants — do not break these
 
@@ -143,6 +133,10 @@ request across the two repositories.
 
 ## Android engine specifics (for the app's bridge)
 
+The paths in this section are relative to the separate
+[MovieBox-Android](https://github.com/manish0467/MovieBox-Android) repository, except
+where this repository's engine is named explicitly.
+
 - **JNI contract:** Rust exports `Java_com_moviebox_app_core_NativeBridge_<fn>` in
   `crates/moviebox-android/src/lib.rs`; the Kotlin declarations live in
   `android/app/src/main/kotlin/com/moviebox/app/core/NativeBridge.kt` (`@JvmStatic
@@ -155,20 +149,20 @@ request across the two repositories.
 - **Payload format:** every bridge call returns a JSON envelope
   `{"ok":true,"data":…}` / `{"ok":false,"error":"…"}` (see `ok_envelope` /
   `error_envelope` in `crates/moviebox-android/src/api.rs`). Kotlin decodes it in
-  `core/MovieBoxRepository.kt`.
+  `android/app/src/main/kotlin/com/moviebox/app/core/MovieBoxRepository.kt`.
 - **Directories:** Android has no XDG dirs. The app passes app-private paths to
   `nativeInit`, which installs `config::set_dir_overrides`.
 - **DNS:** on Android the engine uses the system resolver (`netd`); the public-DNS
-  fallback in `src/net.rs` is `cfg(not(target_os = "android"))` on purpose — do not
-  re-enable it there.
-- **Cleartext HTTP** is enabled through `res/xml/network_security_config.xml` because
-  BDIX mirrors serve plain HTTP.
-- **Build order:** build the `.so` first (`cargo ndk -t arm64-v8a -o
-  android/app/src/main/jniLibs build --release -p moviebox-android`), then
-  `./gradlew assembleDebug`. The package selection is a cargo argument, so it
-  goes *after* the cargo-ndk options.
-  `-PmovieboxBuildRust=true` makes Gradle drive cargo for you.
-- `android/app/src/main/jniLibs/` is generated — never commit it.
+  fallback in this repository's `src/net.rs` is `cfg(not(target_os = "android"))` on
+  purpose — do not re-enable it there.
+- **Cleartext HTTP** is enabled through the app repository's
+  `res/xml/network_security_config.xml` because BDIX mirrors serve plain HTTP.
+- **Build order:** in the app repository, build the `.so` first (`cargo ndk -t
+  arm64-v8a -o android/app/src/main/jniLibs build --release -p moviebox-android`),
+  then `./gradlew assembleDebug`. The package selection is a cargo argument, so it
+  goes *after* the cargo-ndk options. `-PmovieboxBuildRust=true` makes Gradle drive
+  cargo for you.
+- `android/app/src/main/jniLibs/` is generated in the app repository — never commit it.
 
 ## Repository remotes and upstream
 
@@ -210,8 +204,7 @@ listed as shipped, and move a feature there instead of half-implementing it.
 - Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `perf:`, `style:`).
 - Keep changes focused; one concern per PR. Do not mix refactors with behaviour changes.
 - Do not add dependencies without a good reason (say why in the PR).
-- Never commit `target/`, `android/app/build/`, `android/app/src/main/jniLibs/`, editor
-  settings or debug dumps.
+- Never commit `target/`, editor settings or debug dumps.
 - If you add a top-level directory, add it to the `exclude` list in `Cargo.toml` so
   `cargo package` keeps working.
 - `docs/` is an mdBook: new pages must be registered in `docs/SUMMARY.md`.
@@ -238,12 +231,8 @@ cargo test --workspace
 cargo build --no-default-features
 ```
 
-For Android changes also confirm:
-
-```bash
-cargo build -p moviebox-android --target aarch64-linux-android --release
-cd android && ./gradlew assembleDebug
-```
+For Android app changes, use the build and verification steps in the
+[MovieBox-Android](https://github.com/manish0467/MovieBox-Android) repository.
 
 Report which commands you ran and their results. If something could not be run
 (no NDK, no device, no network), say so explicitly instead of implying it passed.
