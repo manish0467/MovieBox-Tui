@@ -240,7 +240,7 @@ impl App {
             self.state.poster_rows = (96_u16.div_ceil(cell_h)).max(3);
         }
 
-        self.state.image_picker = Some(picker);
+        self.state.image_picker = Some(std::sync::Arc::new(picker));
         self.state.image_supported = true;
     }
 
@@ -466,7 +466,11 @@ impl App {
             | Action::InitStreamPool(..)
             | Action::StreamPoolInitialized(..)
             | Action::PosterSuccess(..)
-            | Action::SearchPosterLoaded(..) => {
+            | Action::SearchPosterLoaded(..)
+            | Action::RequestPosterProtocol(..)
+            | Action::PosterProtocolReady { .. }
+            | Action::PosterProtocolFailed { .. }
+            | Action::ResultMetrics(..) => {
                 self.handle_requests(action).await;
             }
 
@@ -527,13 +531,22 @@ impl App {
             download_area = Some(d);
         }
 
-        match self.state.active_screen {
+        let effects = match self.state.active_screen {
             Screen::Home => {
-                crate::tui::screens::home::draw(frame, main_area, &mut self.state, &self.theme);
+                crate::tui::screens::home::draw(frame, main_area, &mut self.state, &self.theme)
             }
             Screen::Details => {
-                crate::tui::screens::details::draw(frame, main_area, &mut self.state, &self.theme);
+                crate::tui::screens::details::draw(frame, main_area, &mut self.state, &self.theme)
             }
+        };
+
+        if let Some(metrics) = effects.result_metrics {
+            self.action_sender.send(Action::ResultMetrics(metrics)).ok();
+        }
+        for request in effects.poster_requests {
+            self.action_sender
+                .send(Action::RequestPosterProtocol(request))
+                .ok();
         }
 
         if self.state.show_help {

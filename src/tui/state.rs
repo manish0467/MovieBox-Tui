@@ -138,6 +138,60 @@ pub struct ResultMetrics {
     pub col_width: u16,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PosterTarget {
+    Search(String),
+    Details,
+}
+
+#[derive(Clone)]
+pub struct PosterEncodeRequest {
+    pub target: PosterTarget,
+    pub area: ratatui::layout::Rect,
+    pub image: std::sync::Arc<image::DynamicImage>,
+}
+
+impl std::fmt::Debug for PosterEncodeRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PosterEncodeRequest")
+            .field("target", &self.target)
+            .field("area", &self.area)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Clone)]
+pub struct EncodedPoster(pub ratatui_image::protocol::Protocol);
+
+impl std::fmt::Debug for EncodedPoster {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("EncodedPoster(..)")
+    }
+}
+
+#[derive(Clone)]
+pub enum PosterProtocolState {
+    Pending,
+    Ready(ratatui_image::protocol::Protocol),
+    Failed,
+}
+
+impl std::fmt::Debug for PosterProtocolState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pending => f.write_str("Pending"),
+            Self::Ready(_) => f.write_str("Ready(..)"),
+            Self::Failed => f.write_str("Failed"),
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct DrawEffects {
+    pub poster_requests: Vec<PosterEncodeRequest>,
+    pub result_metrics: Option<ResultMetrics>,
+}
+
 pub fn result_columns_for(width: u16) -> u16 {
     if width < 110 {
         1
@@ -173,8 +227,7 @@ pub struct AppState {
     pub current_page: usize,
     pub search_posters: lru::LruCache<String, std::sync::Arc<image::DynamicImage>>,
     pub failed_posters: lru::LruCache<String, std::time::Instant>,
-    pub search_poster_protocols:
-        lru::LruCache<String, ((u16, u16), ratatui_image::protocol::Protocol)>,
+    pub search_poster_protocols: lru::LruCache<String, ((u16, u16), PosterProtocolState)>,
     pub poster_fetch_semaphore: std::sync::Arc<tokio::sync::Semaphore>,
     pub in_flight_posters: std::collections::HashSet<String>,
     pub search_list_state: TableState,
@@ -229,8 +282,8 @@ pub struct AppState {
     pub show_sources_popup: bool,
     pub sources_list_state: ListState,
 
-    pub poster_protocol: Option<(ratatui::layout::Rect, ratatui_image::protocol::Protocol)>,
-    pub image_picker: Option<ratatui_image::picker::Picker>,
+    pub poster_protocol: Option<(ratatui::layout::Rect, PosterProtocolState)>,
+    pub image_picker: Option<std::sync::Arc<ratatui_image::picker::Picker>>,
     pub image_supported: bool,
     pub clear_terminal_before_draw: bool,
     pub poster_rows: u16,
@@ -745,6 +798,42 @@ impl AppState {
             columns,
             col_width,
         }
+    }
+
+    pub fn search_poster_needs_encoding(&self, id: &str, dims: (u16, u16)) -> bool {
+        match self.search_poster_protocols.peek(id) {
+            Some((cached_dims, _)) => *cached_dims != dims,
+            None => true,
+        }
+    }
+
+    pub fn details_poster_needs_encoding(&self, area: ratatui::layout::Rect) -> bool {
+        match &self.poster_protocol {
+            Some((cached, _)) => cached.width != area.width || cached.height != area.height,
+            None => true,
+        }
+    }
+
+    /// Check-and-set the search-poster protocol slot. Only the first request for a
+    /// given id and size transitions to `Pending`; a second call must not spawn a
+    /// duplicate encode while one is in flight or after it has failed.
+    pub fn begin_search_poster_encoding(&mut self, id: &str, dims: (u16, u16)) -> bool {
+        if !self.search_poster_needs_encoding(id, dims) {
+            return false;
+        }
+        self.search_poster_protocols
+            .put(id.to_string(), (dims, PosterProtocolState::Pending));
+        true
+    }
+
+    /// Check-and-set the details-poster protocol slot. The cached area is matched
+    /// by dimensions, matching the render path's historic resize check.
+    pub fn begin_details_poster_encoding(&mut self, area: ratatui::layout::Rect) -> bool {
+        if !self.details_poster_needs_encoding(area) {
+            return false;
+        }
+        self.poster_protocol = Some((area, PosterProtocolState::Pending));
+        true
     }
 
     pub fn normalize_result_view(&mut self) {
@@ -1386,6 +1475,42 @@ mod tests {
         let metrics = state.result_metrics(10, 100);
         assert!(metrics.poster_rows_eff <= 9, "rows must fit viewport");
         assert!(metrics.visible_items >= 1);
+    }
+
+    #[test]
+    fn search_poster_sentinel_blocks_same_dimension_retry() {
+        let mut state = AppState::default();
+        assert!(state.search_poster_needs_encoding("poster", (20, 9)));
+        assert!(state.begin_search_poster_encoding("poster", (20, 9)));
+        assert!(!state.search_poster_needs_encoding("poster", (20, 9)));
+        assert!(!state.begin_search_poster_encoding("poster", (20, 9)));
+
+        state
+            .search_poster_protocols
+            .put("poster".to_string(), ((20, 9), PosterProtocolState::Failed));
+        assert!(!state.search_poster_needs_encoding("poster", (20, 9)));
+        assert!(!state.begin_search_poster_encoding("poster", (20, 9)));
+
+        assert!(state.search_poster_needs_encoding("poster", (21, 9)));
+        assert!(state.begin_search_poster_encoding("poster", (21, 9)));
+    }
+
+    #[test]
+    fn details_poster_sentinel_blocks_same_dimension_retry() {
+        let mut state = AppState::default();
+        let area = ratatui::layout::Rect::new(4, 2, 20, 9);
+        assert!(state.details_poster_needs_encoding(area));
+        assert!(state.begin_details_poster_encoding(area));
+        assert!(!state.details_poster_needs_encoding(area));
+        assert!(!state.begin_details_poster_encoding(area));
+
+        state.poster_protocol = Some((area, PosterProtocolState::Failed));
+        assert!(!state.details_poster_needs_encoding(area));
+        assert!(!state.begin_details_poster_encoding(area));
+
+        let wider = ratatui::layout::Rect::new(4, 2, 21, 9);
+        assert!(state.details_poster_needs_encoding(wider));
+        assert!(state.begin_details_poster_encoding(wider));
     }
 
     #[test]

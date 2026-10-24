@@ -2,7 +2,7 @@ use super::App;
 use crate::models::{Episode, MediaType, ProviderKind, Season};
 use crate::tui::{
     action::Action,
-    state::{InputMode, Screen, SearchResult},
+    state::{EncodedPoster, InputMode, PosterProtocolState, PosterTarget, Screen, SearchResult},
 };
 
 impl App {
@@ -787,6 +787,165 @@ impl App {
                 } else {
                     self.state.failed_posters.put(id, std::time::Instant::now());
                 }
+            }
+
+            Action::RequestPosterProtocol(request) => {
+                let dims = (request.area.width, request.area.height);
+                let image_is_current = match &request.target {
+                    PosterTarget::Search(id) => self
+                        .state
+                        .search_posters
+                        .peek(id)
+                        .is_some_and(|img| std::sync::Arc::ptr_eq(img, &request.image)),
+                    PosterTarget::Details => self
+                        .state
+                        .poster_image
+                        .as_ref()
+                        .is_some_and(|img| std::sync::Arc::ptr_eq(img, &request.image)),
+                };
+                if !image_is_current {
+                    return None;
+                }
+                let picker = self
+                    .state
+                    .image_picker
+                    .as_ref()
+                    .map(std::sync::Arc::clone)?;
+
+                let should_spawn = match &request.target {
+                    PosterTarget::Search(id) => self.state.begin_search_poster_encoding(id, dims),
+                    PosterTarget::Details => self.state.begin_details_poster_encoding(request.area),
+                };
+                if !should_spawn {
+                    return None;
+                }
+
+                let sender = self.action_sender.clone();
+                tokio::task::spawn_blocking(move || {
+                    let target = request.target;
+                    let area = request.area;
+                    let image = request.image;
+                    let result = picker.new_protocol(
+                        (*image).clone(),
+                        ratatui::layout::Size::new(area.width, area.height),
+                        ratatui_image::Resize::Fit(None),
+                    );
+                    let action = match result {
+                        Ok(protocol) => Action::PosterProtocolReady {
+                            target,
+                            area,
+                            image,
+                            protocol: Box::new(EncodedPoster(protocol)),
+                        },
+                        Err(_) => Action::PosterProtocolFailed {
+                            target,
+                            area,
+                            image,
+                        },
+                    };
+                    let _ = sender.send(action);
+                });
+            }
+
+            Action::PosterProtocolReady {
+                target,
+                area,
+                image,
+                protocol,
+            } => {
+                let dims = (area.width, area.height);
+                let EncodedPoster(protocol) = *protocol;
+                match target {
+                    PosterTarget::Search(id) => {
+                        let image_is_current = self
+                            .state
+                            .search_posters
+                            .peek(&id)
+                            .is_some_and(|img| std::sync::Arc::ptr_eq(img, &image));
+                        let is_pending = self.state.search_poster_protocols.peek(&id).is_some_and(
+                            |(cached_dims, state)| {
+                                *cached_dims == dims
+                                    && matches!(state, PosterProtocolState::Pending)
+                            },
+                        );
+                        if image_is_current && is_pending {
+                            self.state
+                                .search_poster_protocols
+                                .put(id, (dims, PosterProtocolState::Ready(protocol)));
+                        }
+                    }
+                    PosterTarget::Details => {
+                        let image_is_current = self
+                            .state
+                            .poster_image
+                            .as_ref()
+                            .is_some_and(|img| std::sync::Arc::ptr_eq(img, &image));
+                        let is_pending =
+                            self.state
+                                .poster_protocol
+                                .as_ref()
+                                .is_some_and(|(cached, state)| {
+                                    cached.width == area.width
+                                        && cached.height == area.height
+                                        && matches!(state, PosterProtocolState::Pending)
+                                });
+                        if image_is_current && is_pending {
+                            self.state.poster_protocol =
+                                Some((area, PosterProtocolState::Ready(protocol)));
+                        }
+                    }
+                }
+            }
+
+            Action::PosterProtocolFailed {
+                target,
+                area,
+                image,
+            } => {
+                let dims = (area.width, area.height);
+                match target {
+                    PosterTarget::Search(id) => {
+                        let image_is_current = self
+                            .state
+                            .search_posters
+                            .peek(&id)
+                            .is_some_and(|img| std::sync::Arc::ptr_eq(img, &image));
+                        let is_pending = self.state.search_poster_protocols.peek(&id).is_some_and(
+                            |(cached_dims, state)| {
+                                *cached_dims == dims
+                                    && matches!(state, PosterProtocolState::Pending)
+                            },
+                        );
+                        if image_is_current && is_pending {
+                            self.state
+                                .search_poster_protocols
+                                .put(id, (dims, PosterProtocolState::Failed));
+                        }
+                    }
+                    PosterTarget::Details => {
+                        let image_is_current = self
+                            .state
+                            .poster_image
+                            .as_ref()
+                            .is_some_and(|img| std::sync::Arc::ptr_eq(img, &image));
+                        let is_pending =
+                            self.state
+                                .poster_protocol
+                                .as_ref()
+                                .is_some_and(|(cached, state)| {
+                                    cached.width == area.width
+                                        && cached.height == area.height
+                                        && matches!(state, PosterProtocolState::Pending)
+                                });
+                        if image_is_current && is_pending {
+                            self.state.poster_protocol = Some((area, PosterProtocolState::Failed));
+                        }
+                    }
+                }
+            }
+
+            Action::ResultMetrics(metrics) => {
+                self.state.last_result_metrics = Some(metrics);
             }
 
             Action::PreviewFailure(request_id, err) => {
