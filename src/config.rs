@@ -329,7 +329,7 @@ pub fn save(config: &Config) {
         let _ = std::fs::create_dir_all(parent);
     }
     if let Ok(json) = serde_json::to_string_pretty(config) {
-        if let Err(error) = crate::cache::atomic_write_file(&path, json.as_bytes()) {
+        if let Err(error) = crate::persistence::write(&path, json.as_bytes()) {
             log::warn!("failed to write config: {error}");
         }
     }
@@ -397,7 +397,7 @@ pub fn save_tv_playlists(playlists: &[String]) {
     let Ok(json) = serde_json::to_string_pretty(playlists) else {
         return;
     };
-    if let Err(error) = crate::cache::atomic_write_file(&path, json.as_bytes()) {
+    if let Err(error) = crate::persistence::write(&path, json.as_bytes()) {
         log::warn!("failed to save tv playlists: {error}");
     }
 }
@@ -453,7 +453,7 @@ pub fn save_addons(addons: &[InstalledAddon]) {
     let Ok(json) = serde_json::to_string_pretty(addons) else {
         return;
     };
-    if let Err(error) = crate::cache::atomic_write_file(&path, json.as_bytes()) {
+    if let Err(error) = crate::persistence::write(&path, json.as_bytes()) {
         log::warn!("failed to write addons config: {error}");
     }
 }

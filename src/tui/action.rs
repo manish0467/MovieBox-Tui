@@ -162,6 +162,7 @@ pub enum Action {
         circleftp: bool,
         dhakaflix: bool,
     },
+    UpdateEnvironmentDetected(crate::updater::apply::InstallationEnvironment),
 }
 
 #[cfg(test)]

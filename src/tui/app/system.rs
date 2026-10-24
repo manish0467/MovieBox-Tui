@@ -793,8 +793,14 @@ impl App {
                             self.reset_transient_overlays();
                             self.state.update_available = Some((version, notes));
                         }
+                        self.spawn_update_environment_probe();
                     }
                 }
+            }
+
+            Action::UpdateEnvironmentDetected(env) => {
+                self.state.update_environment = Some(env);
+                self.state.dirty = true;
             }
 
             Action::StartSelfUpdate => {

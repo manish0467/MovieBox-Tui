@@ -321,9 +321,9 @@ impl App {
                 .popup_area
                 .contains(ratatui::layout::Position::new(col, row))
             {
-                let env = std::env::current_exe()
-                    .as_deref()
-                    .map(crate::updater::apply::detect_environment)
+                let env = self
+                    .state
+                    .update_environment
                     .unwrap_or(crate::updater::apply::InstallationEnvironment::DirectReplace);
 
                 if row == layout.button_row_y {
