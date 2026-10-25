@@ -118,14 +118,11 @@ pub fn spawn_sidecar(
     let height_arg = max_height.map(|h| h.to_string()).unwrap_or_default();
 
     let mut cmd = Command::new(exe);
-    cmd.args([
-        "--proxy-for-vlc",
-        target_url,
-        &headers_json,
-        sub_arg,
-        &height_arg,
-    ]);
-    cmd.stdin(Stdio::null());
+    // The target URL, auth headers and subtitle URL carry signed cookies and
+    // tokens, so they travel over stdin instead of the command line, where
+    // any local user could read them in the process list.
+    cmd.args(["--proxy-for-vlc", &height_arg]);
+    cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::null());
     crate::player::configure_detached_process(&mut cmd);
@@ -133,6 +130,24 @@ pub fn spawn_sidecar(
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("failed to spawn proxy sidecar: {e}"))?;
+
+    {
+        use std::io::Write;
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| "failed to open sidecar stdin".to_string())?;
+        let handed_over = stdin
+            .write_all(format!("{target_url}\n{headers_json}\n{sub_arg}\n").as_bytes())
+            .and_then(|_| stdin.flush());
+        if let Err(error) = handed_over {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(format!(
+                "failed to hand stream details to the proxy sidecar: {error}"
+            ));
+        }
+    }
 
     let stdout = child
         .stdout
@@ -172,6 +187,27 @@ pub fn spawn_sidecar(
     };
 
     Ok((format!("http://127.0.0.1:{port}{proxy_path}"), child))
+}
+
+/// The startup payload a sidecar receives over stdin: the target stream
+/// URL, the auth headers, and an optional subtitle URL.
+pub type SidecarStartup = (String, Vec<(String, String)>, Option<String>);
+
+/// Reads the sidecar startup payload from stdin: the target URL, the auth
+/// headers as JSON, and an optional subtitle URL (empty line when absent).
+pub fn read_sidecar_startup_input() -> Option<SidecarStartup> {
+    use std::io::BufRead;
+    let stdin = std::io::stdin();
+    let mut lines = stdin.lock().lines();
+    let target_url = lines.next()?.ok()?.trim().to_string();
+    if target_url.is_empty() {
+        return None;
+    }
+    let headers_json = lines.next()?.ok()?;
+    let headers: Vec<(String, String)> = serde_json::from_str(&headers_json).unwrap_or_default();
+    let subtitle_line = lines.next()?.ok()?.trim().to_string();
+    let subtitle_url = (!subtitle_line.is_empty()).then_some(subtitle_line);
+    Some((target_url, headers, subtitle_url))
 }
 
 pub async fn run_sidecar(

@@ -68,18 +68,16 @@ impl Drop for TerminalGuard {
 async fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if let Some(pos) = args.iter().position(|a| a == "--proxy-for-vlc") {
-        let target_url = args.get(pos + 1).cloned().unwrap_or_default();
-        let headers_json = args
-            .get(pos + 2)
-            .cloned()
-            .unwrap_or_else(|| "[]".to_string());
-        let sub_url = args.get(pos + 3).cloned().filter(|s| !s.is_empty());
         let max_height = args
-            .get(pos + 4)
+            .get(pos + 1)
             .and_then(|s| s.parse::<u64>().ok())
             .filter(|&h| h > 0);
-        let headers: Vec<(String, String)> =
-            serde_json::from_str(&headers_json).unwrap_or_default();
+        let Some((target_url, headers, sub_url)) =
+            moviebox_tui::proxy::read_sidecar_startup_input()
+        else {
+            eprintln!("proxy sidecar: missing stream details on stdin");
+            return Ok(());
+        };
         moviebox_tui::proxy::run_sidecar(target_url, headers, sub_url, max_height).await;
         return Ok(());
     }
