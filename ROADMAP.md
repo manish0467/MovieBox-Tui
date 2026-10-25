@@ -4,7 +4,8 @@
 
 **Terminal client** (this repository)
 
-- MovieBox, 4KHDHub, Dramachi, BDIX (CircleFTP, DhakaFlix) and Stremio addons
+- MovieBox, 4KHDHub, Dramachi, ToonPlay, BDIX (CircleFTP, DhakaFlix) and
+  Stremio addons
 - MovieBox stream resolution from the subject-details detector links, with a
   fresh signed URL resolved right before playback
 - Batch downloads with HTTP range resume, pause and segmented transfers
@@ -40,3 +41,12 @@ For the terminal client:
   episodes — the detector points at index sites that are dead or unreachable.
   The app reports this and points at 4KHDHub or Dramachi. A source-page
   resolver would be unverifiable, so it is not planned.
+- **ToonPlay series playback.** The catalog and episode lists come from a
+  clean API, but per-episode playback routes through a third-party embed
+  whose loader is tamper-protected JavaScript. Movies play fully; series
+  playback stays unavailable until that chain changes.
+- **flixer.gd.** Investigated (October 2026): the site streams well, but its
+  playback URLs are derived by deliberately obfuscated, wasm-backed signing
+  against scraping. Deriving them programmatically would be the exact
+  brittle-maintenance treadmill this roadmap avoids, so the provider is not
+  planned.
