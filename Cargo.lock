@@ -1423,7 +1423,7 @@ dependencies = [
 
 [[package]]
 name = "moviebox-tui"
-version = "0.1.28"
+version = "0.1.31"
 dependencies = [
  "base64 0.23.1",
  "crossterm",
