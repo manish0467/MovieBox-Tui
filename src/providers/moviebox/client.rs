@@ -59,7 +59,13 @@ impl MovieBoxClient {
             .pool_idle_timeout(std::time::Duration::from_secs(90))
             .pool_max_idle_per_host(4)
             .build()
-            .expect("moviebox http client");
+            .unwrap_or_else(|error| {
+                // The builder only fails when the TLS backend cannot be
+                // initialised; a default client still lets the session surface
+                // the real network error instead of aborting the process.
+                log::error!("moviebox http client builder failed: {error}");
+                reqwest::Client::default()
+            });
 
         let (user_agent, client_info) =
             crate::providers::moviebox::crypto::generate_client_info_and_ua();

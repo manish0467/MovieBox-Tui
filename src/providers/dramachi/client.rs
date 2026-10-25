@@ -443,11 +443,13 @@ impl DramachiClient {
             .or_else(|| file_info.f_title.clone())
             .unwrap_or_else(|| format!("{fid}.mkv"));
 
-        let stream_url = format!(
-            "https://{}/cdn/{}",
-            host_info.host.trim_end_matches('/'),
-            raw_url.trim_start_matches('/')
-        );
+        let host = host_info.host.trim_end_matches('/');
+        if !crate::util::is_safe_stream_host(host) {
+            return Err(DramachiError::Parsing(format!(
+                "rejected unsafe stream host: {host}"
+            )));
+        }
+        let stream_url = format!("https://{host}/cdn/{}", raw_url.trim_start_matches('/'));
 
         Ok((stream_url, filename))
     }

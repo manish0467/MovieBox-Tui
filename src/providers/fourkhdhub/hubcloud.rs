@@ -2,7 +2,6 @@ use super::client::FourKHdHubError;
 use crate::providers::models::ResolutionIntent;
 use reqwest::Url;
 use scraper::{Html, Selector};
-use std::net::IpAddr;
 use std::sync::LazyLock;
 
 static SEL_DOWNLOAD: LazyLock<Selector> = LazyLock::new(|| {
@@ -321,11 +320,7 @@ pub fn validate_playback_url(raw: &str) -> Result<String, FourKHdHubError> {
     }
     let host = url.host_str().unwrap_or_default().to_ascii_lowercase();
     let path = url.path().to_ascii_lowercase();
-    if host == "localhost"
-        || host.ends_with(".local")
-        || host
-            .parse::<IpAddr>()
-            .is_ok_and(|address| !is_public_ip(address))
+    if !crate::util::is_safe_stream_host(&host)
         || path.ends_with(".zip")
         || path.contains("login.php")
         || path.contains("logout")
@@ -377,25 +372,6 @@ fn normalize_playback_url_str(raw: &str) -> Option<Url> {
 
     let full = format!("{}{}{}", scheme_host, encoded_path, query_fragment);
     Url::parse(&full).ok()
-}
-
-fn is_public_ip(address: IpAddr) -> bool {
-    match address {
-        IpAddr::V4(address) => {
-            !(address.is_private()
-                || address.is_loopback()
-                || address.is_link_local()
-                || address.is_broadcast()
-                || address.is_documentation()
-                || address.is_unspecified())
-        }
-        IpAddr::V6(address) => {
-            !(address.is_loopback()
-                || address.is_unspecified()
-                || address.is_unique_local()
-                || address.is_unicast_link_local())
-        }
-    }
 }
 
 pub fn score(url: &str, label: &str, intent: ResolutionIntent) -> u8 {

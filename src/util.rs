@@ -155,6 +155,41 @@ pub fn should_forward_header(forward_all: bool, name: &str) -> bool {
     forward_all || name.eq_ignore_ascii_case("user-agent") || name.eq_ignore_ascii_case("referer")
 }
 
+/// Whether `address` is reachable from the public internet — used to reject
+/// loopback, link-local and private ranges in stream hosts.
+pub fn is_public_ip(address: std::net::IpAddr) -> bool {
+    match address {
+        std::net::IpAddr::V4(address) => {
+            !(address.is_private()
+                || address.is_loopback()
+                || address.is_link_local()
+                || address.is_broadcast()
+                || address.is_documentation()
+                || address.is_unspecified())
+        }
+        std::net::IpAddr::V6(address) => {
+            !(address.is_loopback()
+                || address.is_unspecified()
+                || address.is_unique_local()
+                || address.is_unicast_link_local())
+        }
+    }
+}
+
+/// Whether a stream host supplied by an upstream API is safe to request from:
+/// localhost, `.local` names and private IP ranges are rejected so a
+/// compromised provider cannot point the client at the local network.
+pub fn is_safe_stream_host(host: &str) -> bool {
+    let host = host.trim().to_ascii_lowercase();
+    if host.is_empty() || host == "localhost" || host.ends_with(".local") {
+        return false;
+    }
+    match host.parse::<std::net::IpAddr>() {
+        Ok(address) => is_public_ip(address),
+        Err(_) => true,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -175,5 +210,18 @@ mod tests {
         assert_eq!(parse_duration_seconds("1h30m"), Some(5400));
         assert_eq!(parse_duration_seconds("n/a"), None);
         assert_eq!(parse_duration_seconds(""), None);
+    }
+
+    #[test]
+    fn stream_hosts_are_validated() {
+        assert!(is_safe_stream_host("cdn.example.com"));
+        assert!(is_safe_stream_host("8.8.8.8"));
+        assert!(!is_safe_stream_host("localhost"));
+        assert!(!is_safe_stream_host("printer.local"));
+        assert!(!is_safe_stream_host("127.0.0.1"));
+        assert!(!is_safe_stream_host("10.1.2.3"));
+        assert!(!is_safe_stream_host("169.254.1.1"));
+        assert!(!is_safe_stream_host("fd00::1"));
+        assert!(!is_safe_stream_host("  "));
     }
 }
