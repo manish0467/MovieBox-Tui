@@ -19,8 +19,8 @@ cargo audit
 cargo package --locked
 ```
 
-All must pass before anything else. `cargo package --locked` must succeed for **both**
-workspace crates (`moviebox-tui` and `moviebox-android`).
+All must pass before anything else. `cargo package --locked` must succeed for the
+published crate (`moviebox-tui`).
 
 ## Step 2 — Changelog and version
 
@@ -46,9 +46,6 @@ downloads).
 - **Cross-compiled targets are not executed by CI.** The release workflow builds them and
   runs a `--version` smoke test, but Windows ARM64 is never executed (x64 runners cannot
   run it). Smoke-test it manually before certifying.
-- **Four `player::tests::*` / playback tests fail on machines with `mpv`/`vlc`**
-  installed because they assume an Android/Termux environment. They fail on an
-  unmodified checkout too — do not treat them as a regression, and do not weaken them.
 - **`docs/changelog.md` and `docs/contributing.md` are generated copies.** Never edit
   them; they are gitignored and rebuilt before `mdbook build`.
 - **New top-level directories must be added to the `exclude` list in `Cargo.toml`** or

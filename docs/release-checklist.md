@@ -31,10 +31,11 @@ Confirm the main GitHub Actions workflows are green:
 - `CI`
 - `Release`
 - `Publish to Crates.io` when applicable
-- `Update Homebrew Formula` when applicable
+- `Update Package Manifests (Homebrew & Scoop)` when applicable
 
-If you manually dispatch `Publish to Crates.io` or `Update Homebrew Formula`,
-run them against the explicit release tag, not a branch head.
+If you manually dispatch `Publish to Crates.io` or
+`Update Package Manifests (Homebrew & Scoop)`, run them against the explicit release
+tag, not a branch head.
 
 ## 2. Desktop playback checks
 

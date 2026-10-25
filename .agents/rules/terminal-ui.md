@@ -39,9 +39,3 @@ helpers so the terminal code keeps its current import paths.
   agent and reject a `Referer` with 429.
 - On Termux the player is dispatched through Android intents (`termux-open` / `am`).
   Android-intent playback must keep forwarding `User-Agent`, `Referer` and subtitles.
-
-## Testing note
-
-Four tests in this area fail on machines that have `mpv`/`vlc` installed, because they
-assume an Android/Termux environment. They fail identically on an unmodified checkout —
-verify the baseline before changing them, and never weaken the assertions.

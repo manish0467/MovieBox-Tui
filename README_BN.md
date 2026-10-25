@@ -78,7 +78,13 @@ termux-setup-storage
 
 ### নেটিভ Android অ্যাপ
 
-MovieBox-TUI-তে Jetpack Compose ও Media3 দিয়ে তৈরি একটি নেটিভ Android অ্যাপও রয়েছে। এটি একই Rust ইঞ্জিন ব্যবহার করে এবং Android-এ ব্রাউজিং ও প্লেব্যাকের সুবিধা দেয়। সোর্স থেকে ডিবাগ APK তৈরি করতে Android NDK দিয়ে `arm64-v8a` Rust লাইব্রেরি বিল্ড করুন, তারপর `android/` ডিরেক্টরি থেকে `./gradlew assembleDebug` চালান।
+নেটিভ Android অ্যাপ (Jetpack Compose + Media3) তার নিজস্ব রিপোজিটরিতে রয়েছে —
+[MovieBox-Android](https://github.com/manish0467/MovieBox-Android) — কারণ এটি
+GPL-3.0 এবং Flow অ্যাপের ইন্টারফেস কাজ পুনর্ব্যবহার করে, আর এই রিপোজিটরি
+MIT OR Apache-2.0 থাকে। এটি একই Rust ইঞ্জিনে চলে, যা `v0.1.28` ট্যাগে git
+নির্ভরতা হিসেবে ব্যবহৃত হয়।
+
+বিস্তারিত দেখুন [docs/android.md](docs/android.md)।
 
 <details>
 <summary><b>Cargo ও সোর্স কোড থেকে বিল্ড</b></summary>

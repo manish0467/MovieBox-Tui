@@ -19,5 +19,3 @@ Key points:
 - No panics on network or user-input paths; zero telemetry.
 - Conventional Commits; update `CHANGELOG.md` (`## [Unreleased]`) and
   `docs/SUMMARY.md` when adding documentation.
-- Four `player::tests::*` / playback tests fail on machines that have `mpv`/`vlc`
-  installed. Pre-existing — do not weaken those assertions.

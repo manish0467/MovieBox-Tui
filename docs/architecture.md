@@ -14,13 +14,13 @@ The crate is split in two layers so that non-terminal frontends can reuse the en
 │   cache · config · download · favorites · history · logging  │
 │   models · net · providers · service · util                  │
 └──────────────────────────────────────────────────────────────┘
-        ▲                                   ▲
-        │ depends on (default-features=false)│
-┌───────────────────────┐        ┌──────────────────────────────┐
-│ Terminal frontend     │        │ Android bridge               │
-│ `tui` feature         │        │ crates/moviebox-android      │
-│ tui · proxy · updater │        │ (cdylib, JNI, JSON payloads)  │
-└───────────────────────┘        └──────────────────────────────┘
+        ▲
+        │ depends on (default-features=false)
+┌───────────────────────┐
+│ Terminal frontend     │
+│ `tui` feature         │
+│ tui · proxy · updater │
+└───────────────────────┘
 ┌───────────────────────┐
 │ Headless CLI          │  moviebox-cli (core only, no terminal)
 └───────────────────────┘
@@ -31,8 +31,10 @@ The crate is split in two layers so that non-terminal frontends can reuse the en
   forwarding rules) now live in `src/util.rs`.
 - The **terminal frontend** is behind the `tui` Cargo feature, which is enabled by
   default. `cargo build --no-default-features` produces a headless engine.
-- The **Android bridge** is a separate `cdylib` crate that depends on the engine with
-  `default-features = false` and exposes it over JNI. See [android.md](android.md).
+- Non-terminal frontends consume the engine with `default-features = false`. The
+  Android app and its JNI bridge live in the separate
+  [MovieBox-Android](https://github.com/manish0467/MovieBox-Android) repository; see
+  [android.md](android.md).
 - The **headless CLI** (`moviebox-cli`) is a second binary over the core: it needs no
   terminal, so the player launcher lives in the core rather than behind the `tui`
   feature. See [cli.md](cli.md).

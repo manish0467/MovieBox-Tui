@@ -144,23 +144,10 @@ src/
                      theme/status/updates.
     tv.rs            handle_tv: playlist manager + TV actions.
     addons.rs        handle_addons: addon manager + HTTP addon actions.
-
-crates/moviebox-android/
-  Cargo.toml         cdylib crate: depends on the root crate with
-                     `default-features = false` (no ratatui/crossterm).
-  src/lib.rs        JNI entry points (`Java_com_moviebox_app_core_NativeBridge_*`).
-                     Every call returns a JSON envelope.
-  src/api.rs        Bridge operations: providers, search, details, episode
-                     streams, playback resolution, subtitles, favorites, history,
-                     watch progress and the download jobs.
-  src/downloads.rs  The download job manager: the request the app sends, the
-                     job state and progress, and the registry of running jobs.
 ```
 
 The `tui`, `player`, `proxy` and `updater` modules are compiled only when the
-`tui` Cargo feature is enabled (default). The Android build depends on the
-crate with `default-features = false`, so the shared library never links the
-terminal frontend.
+`tui` Cargo feature is enabled (default).
 
 See [architecture.md](architecture.md) for the event loop, async model and data flow,
 and the per-topic docs for details.

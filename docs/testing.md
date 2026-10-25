@@ -1,6 +1,6 @@
 # Testing & QA Architecture
 
-This document describes the testing architecture, quality assurance procedures, and validation guidelines for MovieBox-TUI. The current workspace contains **559 automated tests**, including 15 opt-in ignored live-stream tests.
+This document describes the testing architecture, quality assurance procedures, and validation guidelines for MovieBox-TUI. The current repository contains **579 automated tests**, including 15 opt-in ignored live-stream tests.
 
 ## 1. Test Architecture
 
@@ -26,6 +26,7 @@ MovieBox-TUI/
     ├── history_audit.rs       # Cross-mode watch progress, series advancement, & boundary audit
     ├── favorites_lifecycle.rs # Favorites persistence, identity, and navigation lifecycle
     ├── performance_audit.rs   # Empirical benchmark measurements (truncation, hashing, M3U, draw latency)
+    ├── player_contract.rs     # VLC/IINA command schemas, Windows paths, and header support across OSes
     └── live_stream_verification.rs # Live MovieBox CDN signed stream & resolution verification (opt-in)
 ```
 

@@ -19,5 +19,3 @@ Critical rules (full detail in `AGENTS.md`):
 - Never panic on network or user-input paths. Zero telemetry.
 - Conventional Commits. Update `CHANGELOG.md` (`## [Unreleased]`) and
   `docs/SUMMARY.md` when adding docs.
-- Four `player::tests::*` / playback tests fail on machines with `mpv`/`vlc` installed.
-  That is pre-existing; do not weaken those assertions.
