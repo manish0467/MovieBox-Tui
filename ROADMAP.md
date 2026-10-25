@@ -22,8 +22,10 @@ downloads.
 
 The app's roadmap lives with the app:
 [MovieBox-Android/ROADMAP.md](https://github.com/manish0467/MovieBox-Android/blob/main/ROADMAP.md)
-— Live TV (the design is written out there), the player polish work, the
-settings screen, release signing and the Stremio addon bridge.
+— the remaining device work (a real-phone test, the player top-bar inset
+fix, store metadata, a native review of the translations) and the later
+items (the Stremio addon bridge, casting, custom playlists, per-provider
+endpoint overrides).
 
 For the terminal client:
 
