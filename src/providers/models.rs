@@ -16,13 +16,16 @@ pub enum ProviderKind {
     Addons,
     #[serde(rename = "dramachi")]
     Dramachi,
+    #[serde(rename = "toonplay")]
+    ToonPlay,
 }
 
 impl ProviderKind {
-    pub const ENABLED: [Self; 5] = [
+    pub const ENABLED: [Self; 6] = [
         Self::MovieBox,
         Self::FourKHdHub,
         Self::Dramachi,
+        Self::ToonPlay,
         Self::BdixCircleFtp,
         Self::BdixDhakaFlix,
     ];
@@ -35,6 +38,7 @@ impl ProviderKind {
             Self::BdixDhakaFlix => "bdix_dhakaflix",
             Self::Addons => "addons",
             Self::Dramachi => "dramachi",
+            Self::ToonPlay => "toonplay",
         }
     }
 
@@ -46,6 +50,7 @@ impl ProviderKind {
             Self::BdixDhakaFlix => "DhakaFlix (BDIX)",
             Self::Addons => "Addons",
             Self::Dramachi => "Dramachi",
+            Self::ToonPlay => "ToonPlay",
         }
     }
 
@@ -57,6 +62,7 @@ impl ProviderKind {
             "bdix_dhakaflix" | "dhakaflix (bdix)" => Some(Self::BdixDhakaFlix),
             "addons" | "addon" => Some(Self::Addons),
             "dramachi" => Some(Self::Dramachi),
+            "toonplay" => Some(Self::ToonPlay),
             _ => None,
         }
     }
@@ -301,6 +307,7 @@ impl Release {
                 ProviderKind::BdixDhakaFlix => "DhakaFlix",
                 ProviderKind::Addons => "Addon",
                 ProviderKind::Dramachi => "Dramachi",
+                ProviderKind::ToonPlay => "ToonPlay",
                 ProviderKind::MovieBox => "Direct",
             })
     }
