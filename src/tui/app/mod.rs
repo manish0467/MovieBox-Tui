@@ -196,6 +196,7 @@ impl App {
         state.moviebox_enabled = config.moviebox_enabled;
         state.fourkhdhub_enabled = config.fourkhdhub_enabled;
         state.dramachi_enabled = config.dramachi_enabled;
+        state.toonplay_enabled = config.toonplay_enabled;
         state.bdix_circleftp_enabled = config.bdix_circleftp_enabled;
         state.bdix_dhakaflix_enabled = config.bdix_dhakaflix_enabled;
         state.bdix_probed = config.bdix_probed;
@@ -365,6 +366,7 @@ impl App {
             moviebox_enabled: self.state.moviebox_enabled,
             fourkhdhub_enabled: self.state.fourkhdhub_enabled,
             dramachi_enabled: self.state.dramachi_enabled,
+            toonplay_enabled: self.state.toonplay_enabled,
             bdix_circleftp_enabled: self.state.bdix_circleftp_enabled,
             bdix_dhakaflix_enabled: self.state.bdix_dhakaflix_enabled,
             bdix_probed: self.state.bdix_probed,

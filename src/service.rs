@@ -17,6 +17,7 @@ pub struct MovieBoxService {
     pub dhakaflix_client: DhakaFlixClient,
     pub addon_client: crate::providers::addons::AddonClient,
     pub dramachi_client: crate::providers::dramachi::DramachiClient,
+    pub toonplay_client: crate::providers::toonplay::ToonPlayClient,
     pub http_client: reqwest::Client,
 }
 
@@ -40,6 +41,7 @@ impl MovieBoxService {
             dhakaflix_client: DhakaFlixClient::new(),
             addon_client: crate::providers::addons::AddonClient::new(),
             dramachi_client: crate::providers::dramachi::DramachiClient::new(),
+            toonplay_client: crate::providers::toonplay::ToonPlayClient::new(),
             http_client,
         }
     }
@@ -56,6 +58,7 @@ impl MovieBoxService {
             ProviderKind::BdixDhakaFlix => Provider::capabilities(&self.dhakaflix_client),
             ProviderKind::Addons => Provider::capabilities(&self.addon_client),
             ProviderKind::Dramachi => Provider::capabilities(&self.dramachi_client),
+            ProviderKind::ToonPlay => Provider::capabilities(&self.toonplay_client),
         }
     }
 
@@ -90,6 +93,7 @@ impl MovieBoxService {
             }
             ProviderKind::Addons => Provider::search(&self.addon_client, query, page).await,
             ProviderKind::Dramachi => Provider::search(&self.dramachi_client, query, page).await,
+            ProviderKind::ToonPlay => Provider::search(&self.toonplay_client, query, page).await,
         }
     }
 
@@ -158,6 +162,7 @@ impl MovieBoxService {
             }
             ProviderKind::Addons => Provider::details(&self.addon_client, subject_id).await,
             ProviderKind::Dramachi => Provider::details(&self.dramachi_client, subject_id).await,
+            ProviderKind::ToonPlay => Provider::details(&self.toonplay_client, subject_id).await,
         }
     }
 
@@ -241,6 +246,15 @@ impl MovieBoxService {
             ProviderKind::Dramachi => {
                 crate::providers::ReleaseProvider::episode_streams(
                     &self.dramachi_client,
+                    subject_id,
+                    season,
+                    episode,
+                )
+                .await
+            }
+            ProviderKind::ToonPlay => {
+                crate::providers::ReleaseProvider::episode_streams(
+                    &self.toonplay_client,
                     subject_id,
                     season,
                     episode,

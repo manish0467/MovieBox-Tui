@@ -9,6 +9,7 @@ MovieBox-TUI searches and streams media across multiple independent providers.
 | **MovieBox** | Primary streaming catalog with multi-language audio, seasons, and subtitles. |
 | **4KHDHub** | High-bitrate 4K UHD and 1080p releases with fast CDN mirrors. |
 | **Dramachi** | Asian dramas and series catalog. |
+| **ToonPlay** | Anime and cartoon catalog (movies playable; series listed but playback pending). |
 | **CircleFTP** | High-speed local BDIX mirror (Bangladesh ISPs). |
 | **DhakaFlix** | Local BDIX media indexer (Bangladesh ISPs). |
 | **Addons** | Community Stremio HTTP addons (Cinemeta catalog and streams). |

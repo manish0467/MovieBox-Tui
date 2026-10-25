@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+- **Providers & Catalog**:
+  - Added the **ToonPlay** provider: an anime and cartoon catalog (search, details
+    with seasons and episodes, movie playback) backed by the animesalt API, with
+    signed multi-audio HLS streams resolved through its watch servers. Series
+    playback is reported as not yet supported.
+
 ### Fixed
 - **Media Playback & Subtitle Engine**:
   - Removed `--play-and-exit` from VLC player invocations so the player stays active across adaptive and HLS chunk transitions.
