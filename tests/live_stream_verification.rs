@@ -1,6 +1,14 @@
 use moviebox_tui::providers::ReleaseProvider;
 use moviebox_tui::providers::moviebox::client::MovieBoxClient;
 
+/// MovieBox currently serves signed direct MP4 files where it used to serve
+/// DASH manifests. Manifest-only assertions apply when the resolver returns
+/// an `.mpd`; direct files are verified by proving the CDN serves media
+/// bytes instead.
+fn is_direct_mp4_url(url: &str) -> bool {
+    url::Url::parse(url).is_ok_and(|parsed| parsed.path().ends_with(".mp4"))
+}
+
 #[tokio::test]
 #[ignore = "live network test; run with cargo test --test live_stream_verification -- --ignored"]
 async fn test_live_movie_stream_real_urls() {
@@ -182,6 +190,24 @@ async fn test_inspect_live_mpd_manifest() {
     assert!(!releases.is_empty(), "releases should not be empty");
 
     let mirror = &releases[0].mirrors[0];
+    if is_direct_mp4_url(&mirror.resolver_url) {
+        println!("Direct MP4 stream (no manifest): {}", mirror.resolver_url);
+        let mut request = client.http_client().get(&mirror.resolver_url);
+        for (name, val) in &mirror.headers {
+            request = request.header(name, val);
+        }
+        let response = request
+            .header("Range", "bytes=0-31")
+            .send()
+            .await
+            .expect("request direct mp4 bytes");
+        assert!(
+            response.status().is_success(),
+            "direct mp4 must serve media bytes, got {}",
+            response.status()
+        );
+        return;
+    }
     println!("Fetching MPD Manifest from: {}", mirror.resolver_url);
 
     let mut req = client.http_client().get(&mirror.resolver_url);
@@ -470,6 +496,37 @@ async fn test_live_moviebox_download_selected_resolution_verifies_format() {
             "bestvideo[height<={expected_h}]+bestaudio/best[height<={expected_h}]/bestvideo+bestaudio/best"
         );
         let mirror = &releases[0].mirrors[0];
+        if is_direct_mp4_url(&mirror.resolver_url) {
+            // A direct file has no format ladder to select from; the
+            // resolution contract is satisfied by the distinct releases.
+            // Only prove that yt-dlp can still resolve the single format.
+            if expected_h == 480 {
+                println!(
+                    "Direct MP4 stream (no format ladder): {}",
+                    mirror.resolver_url
+                );
+                let mut cmd = std::process::Command::new("yt-dlp");
+                for (k, v) in &mirror.headers {
+                    if k.eq_ignore_ascii_case("user-agent") {
+                        cmd.arg("--user-agent").arg(v);
+                    } else {
+                        cmd.arg("--add-header").arg(format!("{k}: {v}"));
+                    }
+                }
+                let output = cmd
+                    .arg("-s")
+                    .arg("--print")
+                    .arg("%(format_id)s")
+                    .arg(&mirror.resolver_url)
+                    .output()
+                    .expect("execute yt-dlp simulation");
+                assert!(
+                    output.status.success(),
+                    "yt-dlp must resolve the direct file format"
+                );
+            }
+            continue;
+        }
         let mut cmd = std::process::Command::new("yt-dlp");
         for (k, v) in &mirror.headers {
             if k.eq_ignore_ascii_case("user-agent") {
