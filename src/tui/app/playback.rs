@@ -968,8 +968,15 @@ impl App {
                     // the URL right before it is handed to the player.
                     if release.provider == crate::providers::models::ProviderKind::MovieBox {
                         if let Some(rid) = release.resource_id.as_deref() {
-                            if let Some(fresh) =
-                                self.service.refresh_moviebox_source(&subject_id, rid).await
+                            if let Some(fresh) = self
+                                .service
+                                .refresh_moviebox_source(
+                                    &subject_id,
+                                    rid,
+                                    release.season.unwrap_or(0),
+                                    release.episode.unwrap_or(0),
+                                )
+                                .await
                             {
                                 direct_source = fresh;
                             }

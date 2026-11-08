@@ -62,20 +62,41 @@ impl crate::providers::ReleaseProvider for client::MovieBoxClient {
         season: usize,
         episode: usize,
     ) -> Result<Vec<crate::providers::models::Release>, ProviderError> {
-        // The details payload still carries the real media links in
+        // Movies still carry real links in
         // `resourceDetectors[].resolutionList[]`, while `play-info` only
-        // returns the site trailer. Prefer the detector links and keep the
-        // play-info/resources path as a fallback for when upstream restores
-        // signed manifests.
-        if let Ok(details) = self.get_details(id).await {
+        // returns the site trailer. Series detectors have an empty
+        // `resolutionList`, but the H5 play endpoint still returns the real
+        // signed MP4s. Keep the play-info/resources path as a last fallback
+        // for when upstream restores signed manifests.
+        let details = self.get_details(id).await.ok();
+        if let Some(details) = details.as_ref() {
             let detector_releases = adapt::moviebox_detector_json_to_releases(
-                &details,
+                details,
                 season,
                 episode,
                 self.user_agent(),
             );
             if !detector_releases.is_empty() {
                 return Ok(detector_releases);
+            }
+
+            if let Some(detail_slug) = adapt::moviebox_detail_slug(details) {
+                match self.get_h5_play(id, season, episode, &detail_slug).await {
+                    Ok(h5_payload) => {
+                        let h5_releases = adapt::moviebox_h5_play_to_releases(
+                            &h5_payload,
+                            season,
+                            episode,
+                            self.user_agent(),
+                        );
+                        if !h5_releases.is_empty() {
+                            return Ok(h5_releases);
+                        }
+                    }
+                    Err(error) => {
+                        log::debug!("moviebox H5 play fallback failed: {error}");
+                    }
+                }
             }
         }
 
@@ -165,9 +186,8 @@ impl crate::providers::ReleaseProvider for client::MovieBoxClient {
 
         if releases.is_empty() {
             return Err(ProviderError::Unavailable(
-                "MovieBox no longer exposes a direct link for this title upstream \
-                 (its play-info endpoint answers with the site trailer). Series \
-                 episodes are the usual case. Try the 4KHDHub or Dramachi provider."
+                "MovieBox returned no playable source for this title upstream. \
+                 Try the 4KHDHub or Dramachi provider."
                     .to_string(),
             ));
         }

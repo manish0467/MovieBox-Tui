@@ -45,14 +45,14 @@ New providers implement `Provider` (and optionally `ReleaseProvider` for multi-m
 
 MovieBox CDN stream entries parse signed `CloudFront-Policy` and `Edge-Cache-Cookie` tokens to find stream roots. The manifest resolver accepts only `/dash/` resources. Unhosted legacy `/hls/` cookie targets are dropped to prevent 404 failures during playback or downloads.
 
-### MovieBox Stream Resolution (detector links)
+### MovieBox Stream Resolution
 
 As of 2026-10 the MovieBox `play-info` endpoint answers with the **site trailer**
 (a ~23 second MP4, byte-identical for every title) instead of the media, and the
 `resource` endpoint points `resourceLink` at the same file. Those placeholder URLs are
 rejected by `is_trailer_or_notice_url()` and never offered as playable mirrors.
 
-The real media is still served by the **subject details** endpoint:
+Movies are still resolved from the **subject details** endpoint:
 `subject-api/get` returns `resourceDetectors[].resolutionList[]`, where every entry
 carries a signed CDN link on the `*.hakunaymatata.com` CDN:
 
@@ -65,15 +65,33 @@ file size, duration, codec and per-resolution variants, and `episode_streams()` 
 them, keeping the `play-info`/`resource` path as a fallback in case upstream restores
 signed manifests.
 
+Series detectors carry an empty `resolutionList` and only point at an index site, so
+`episode_streams()` falls back to the **H5 web play endpoint**:
+
+```text
+https://h5.aoneroom.com/wefeed-h5-bff/web/subject/play?subjectId=<id>&se=<season>&ep=<episode>
+```
+
+That endpoint only returns real streams when the request carries the detail page as
+`Referer: https://h5.aoneroom.com/movies/<detail-slug>`, where the slug is the last
+segment of the subject's `detailUrl` (for example
+`breaking-bad-ej6Bp0MCAo7`). `moviebox_detail_slug()` extracts it from the details
+payload, and `moviebox_h5_play_to_releases()` turns the `streams[]` entries into
+per-resolution releases. The H5 CDN (`bcdnxw.hakunaymatata.com`) answers `429` unless
+the media request carries the official web player origin as `Referer`; the generated
+mirror headers therefore include `Referer: https://officialmoviebox.com/` together
+with the MovieBox user agent.
+
 Two consequences worth knowing:
 
 - **The links are time limited.** The `t=` query is an expiry timestamp, so the URL is
   refreshed right before playback (`MovieBoxService::refresh_moviebox_source`, used by
-  the terminal player path and by the Android bridge). Listed links are never cached.
-- **Series episodes are usually not resolved upstream.** Their detector points at an
-  index site (`fzmovies.cms etc.`, `kickasstorrents.to etc.`) and carries an empty
-  `resolutionList`, so no direct link exists. MovieBox then reports that it has no
-  direct source for the title; use **4KHDHub** or **Dramachi** for series.
+  the terminal player path and by the Android bridge). The refresh tries the detector
+  first and then the H5 endpoint, so both movie and series releases get a fresh link.
+  Listed links are never cached.
+- **Some titles or episodes have no upstream source.** The H5 endpoint can return an
+  empty `streams` array for an unavailable episode, and MovieBox then reports that it
+  has no playable source for the title; use **4KHDHub** or **Dramachi** as a fallback.
 
 ### MovieBox Placeholder Recovery (resource-position)
 

@@ -281,7 +281,14 @@ impl MovieBoxService {
     ) -> Option<crate::providers::models::PlaybackSource> {
         if provider == ProviderKind::MovieBox
             && let Some(resource_id) = release.resource_id.as_deref()
-            && let Some(fresh) = self.refresh_moviebox_source(subject_id, resource_id).await
+            && let Some(fresh) = self
+                .refresh_moviebox_source(
+                    subject_id,
+                    resource_id,
+                    release.season.unwrap_or(0),
+                    release.episode.unwrap_or(0),
+                )
+                .await
         {
             return Some(fresh);
         }
@@ -299,38 +306,62 @@ impl MovieBoxService {
 
     /// Re-resolves a MovieBox release to a fresh signed URL.
     ///
-    /// The detector links carry a `?sign=<token>&t=<expiry>` query, so a link
-    /// that was listed a while ago can already be stale. Refreshing right
-    /// before playback guarantees a working URL. Returns `None` when the
+    /// MovieBox links carry a `?sign=<token>&t=<expiry>` query, so a link that
+    /// was listed a while ago can already be stale. Refreshing right before
+    /// playback guarantees a working URL. Movies use the subject detector;
+    /// series fall back to the H5 play endpoint. Returns `None` when the
     /// release cannot be refreshed, so callers keep the listed link.
     pub async fn refresh_moviebox_source(
         &self,
         subject_id: &str,
         resource_id: &str,
+        season: usize,
+        episode: usize,
     ) -> Option<crate::providers::models::PlaybackSource> {
         if subject_id.trim().is_empty() || resource_id.trim().is_empty() {
             return None;
         }
         let details = self.client.get_details(subject_id).await.ok()?;
-        let releases = crate::providers::moviebox::adapt::moviebox_detector_json_to_releases(
-            &details,
-            0,
-            0,
+        let detector_releases =
+            crate::providers::moviebox::adapt::moviebox_detector_json_to_releases(
+                &details,
+                season,
+                episode,
+                self.client.user_agent(),
+            );
+        if let Some(release) = detector_releases
+            .iter()
+            .find(|release| release.resource_id.as_deref() == Some(resource_id))
+        {
+            return Self::playback_source_from_release(release);
+        }
+
+        let detail_slug = crate::providers::moviebox::adapt::moviebox_detail_slug(&details)?;
+        let h5_payload = self
+            .client
+            .get_h5_play(subject_id, season, episode, &detail_slug)
+            .await
+            .ok()?;
+        let h5_releases = crate::providers::moviebox::adapt::moviebox_h5_play_to_releases(
+            &h5_payload,
+            season,
+            episode,
             self.client.user_agent(),
         );
-        let release = releases
+        let release = h5_releases
             .iter()
             .find(|release| release.resource_id.as_deref() == Some(resource_id))?;
+        Self::playback_source_from_release(release)
+    }
+
+    fn playback_source_from_release(
+        release: &crate::providers::models::Release,
+    ) -> Option<crate::providers::models::PlaybackSource> {
         let mirror = release.mirrors.first()?;
         Some(crate::providers::models::PlaybackSource {
             provider: crate::providers::models::ProviderKind::MovieBox,
             url: mirror.resolver_url.clone(),
-            // The CDN answers 429 when a `Referer` is sent and expects the
-            // MovieBox app user agent.
-            headers: vec![(
-                "User-Agent".to_string(),
-                self.client.user_agent().to_string(),
-            )],
+            headers: mirror.headers.clone(),
             subtitle: None,
             source_label: mirror.label.clone(),
             max_height: Some(release.resolution_u64()).filter(|&h| h > 0),

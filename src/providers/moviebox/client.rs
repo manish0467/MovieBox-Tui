@@ -19,6 +19,13 @@ const HOST_POOL: &[&str] = &[
 
 const RETRY_STATUS_CODES: &[u16] = &[403, 406, 407, 429, 500, 502, 503, 504];
 
+/// The H5 web frontend exposes the series play endpoint without the signed
+/// mobile API handshake. It is the fallback for series, whose subject details
+/// detector only carries an empty `resolutionList`.
+const H5_HOST: &str = "https://h5.aoneroom.com";
+const H5_MOVIES_PATH: &str = "/movies/";
+const H5_PLAY_PATH: &str = "/wefeed-h5-bff/web/subject/play";
+
 #[derive(thiserror::Error, Debug)]
 pub enum ScraperError {
     #[error("Reqwest error: {0}")]
@@ -204,6 +211,37 @@ impl MovieBoxClient {
     pub async fn post(&self, path_and_query: &str, body: &Value) -> Result<Value, ScraperError> {
         let body_str = serde_json::to_string(body)?;
         self.request("POST", path_and_query, Some(&body_str)).await
+    }
+
+    /// Resolves a series episode through the H5 web play endpoint.
+    ///
+    /// The mobile `play-info` endpoint answers with the site trailer, and a
+    /// series detector has no `resolutionList`, but the H5 endpoint still
+    /// returns the real signed MP4s. It only does so when the request carries
+    /// the detail page as `Referer`, so `detail_slug` must be the last segment
+    /// of the subject's `detailUrl` (for example
+    /// `breaking-bad-ej6Bp0MCAo7`).
+    pub async fn get_h5_play(
+        &self,
+        subject_id: &str,
+        season: usize,
+        episode: usize,
+        detail_slug: &str,
+    ) -> Result<Value, ScraperError> {
+        let url =
+            format!("{H5_HOST}{H5_PLAY_PATH}?subjectId={subject_id}&se={season}&ep={episode}");
+        let referer = format!("{H5_HOST}{H5_MOVIES_PATH}{detail_slug}");
+        let response = self
+            .client
+            .get(&url)
+            .header(reqwest::header::USER_AGENT, &self.user_agent)
+            .header(reqwest::header::REFERER, referer)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .header("X-Client-Info", r#"{"timezone":"UTC"}"#)
+            .send()
+            .await?;
+
+        self.parse_response(response).await
     }
 
     async fn request(

@@ -4,20 +4,16 @@ Tracked here so future work and issue reports reference the same facts.
 
 ## Latent / by-design
 
-- **MovieBox stopped exposing direct links for series episodes upstream.** The subject
-  details payload carries an empty `resourceDetectors[].resolutionList` for series and
-  points at an index site instead (`fzmovies.cms etc.`, `kickasstorrents.to etc.`), so
-  no CDN link exists to play. Movies are unaffected: their detector still carries the
-  signed `*.hakunaymatata.com` links. MovieBox reports this as "no direct source for
-  this title"; use 4KHDHub or Dramachi for series.
 - **MovieBox `play-info` returns the site trailer instead of the stream.** The endpoint
   answers with a ~23 second placeholder MP4 (identical for every title) and an empty
-  `signCookie`. The client therefore resolves streams from the subject details
-  `resourceDetectors` block instead; the `play-info` path is kept as a fallback.
-  See [providers.md](providers.md#moviebox-stream-resolution-detector-links).
+  `signCookie`. The client therefore resolves movies from the subject details
+  `resourceDetectors` block and series from the H5 web play endpoint; the `play-info`
+  path is kept as a fallback. See
+  [providers.md](providers.md#moviebox-stream-resolution).
 - **MovieBox stream links are signed and time limited.** The `?sign=<token>&t=<expiry>`
   query is refreshed right before playback, so a link that was listed a while ago is
-  replaced by a fresh one.
+  replaced by a fresh one. H5 series links also require the official-site `Referer`;
+  the player proxy forwards the mirror headers.
 - **`supports_headers` routes authenticated streams via loopback proxy.** Sources that
   carry authentication headers (e.g. MovieBox CloudFront signed cookies) automatically
   route through the local detached HTTP loopback proxy (`src/proxy.rs`) for both VLC and
@@ -35,6 +31,6 @@ Tracked here so future work and issue reports reference the same facts.
 
 ## Verification
 
-- Automated testing is enforced via `cargo test --all-features --locked` covering 579 unit and integration tests across 11 integration suites plus the shared helper in `tests/common` (see [`docs/testing.md`](testing.md)). The count is updated when tests change; it does not replace real-player and real-device verification.
+- Automated testing is enforced via `cargo test --all-features --locked` covering 578 unit and integration tests across 11 integration suites plus the shared helper in `tests/common` (see [`docs/testing.md`](testing.md)). The count is updated when tests change; it does not replace real-player and real-device verification.
 - Static correctness is enforced by strict compiler type checking, the lint gate (`cargo clippy --all-targets --all-features --locked -- -D warnings`), formatting (`cargo fmt --check`), dependency vulnerability scanning (`cargo audit`), and packaging verification (`cargo package --locked`).
 - Runtime and platform-specific behavior (terminal resize, focus handling, external player launch, and Termux chooser) are verified through the release checklist in [`release-checklist.md`](release-checklist.md).

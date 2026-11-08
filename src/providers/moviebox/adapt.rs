@@ -667,6 +667,171 @@ pub fn moviebox_detector_json_to_releases(
     releases
 }
 
+/// The H5 CDN (`bcdnxw.hakunaymatata.com`) answers `429` unless the request
+/// says it comes from the official web player. Any path on this origin works;
+/// a movie page or the site root is enough.
+pub const MOVIEBOX_H5_STREAM_REFERER: &str = "https://officialmoviebox.com/";
+
+/// Extracts the H5 detail slug from a subject-details payload.
+///
+/// The details endpoint exposes `detailUrl` such as
+/// `https://movie-box.co/detail/breaking-bad-ej6Bp0MCAo7`; the H5 play
+/// endpoint wants that last segment in its `Referer`.
+pub fn moviebox_detail_slug(payload: &serde_json::Value) -> Option<String> {
+    let data = payload.get("data").unwrap_or(payload);
+    ["detailUrl", "detailPath"].iter().find_map(|key| {
+        let raw = data.get(*key)?.as_str()?.trim();
+        if raw.is_empty() {
+            return None;
+        }
+        let path = raw.split(['?', '#']).next().unwrap_or(raw);
+        let slug = path.trim_end_matches('/').rsplit('/').next()?.trim();
+        (!slug.is_empty()).then(|| slug.to_string())
+    })
+}
+
+/// Parses the H5 web play response into releases.
+///
+/// The H5 endpoint is the only source of real series links: the mobile
+/// `play-info` endpoint returns the site trailer, and the series detector has
+/// an empty `resolutionList`. Its `streams[]` entries carry the same signed
+/// `*.hakunaymatata.com` MP4s, with a per-resolution URL, size, codec and an
+/// `id` that doubles as the resource id.
+pub fn moviebox_h5_play_to_releases(
+    payload: &serde_json::Value,
+    season: usize,
+    episode: usize,
+    user_agent: &str,
+) -> Vec<Release> {
+    let data = payload.get("data").unwrap_or(payload);
+    let Some(streams) = data.get("streams").and_then(|s| s.as_array()) else {
+        return Vec::new();
+    };
+
+    let title = data
+        .get("title")
+        .and_then(|t| t.as_str())
+        .map(str::trim)
+        .filter(|t| !t.is_empty());
+
+    let mut releases = Vec::new();
+    for stream in streams {
+        let Some(link) = stream
+            .get("url")
+            .and_then(|u| u.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .filter(|s| !is_trailer_or_notice_url(s))
+        else {
+            continue;
+        };
+
+        let resolution = stream
+            .get("resolutions")
+            .or_else(|| stream.get("resolution"))
+            .and_then(|value| {
+                let raw = if let Some(text) = value.as_str() {
+                    text.to_string()
+                } else if let Some(number) = value.as_u64() {
+                    number.to_string()
+                } else {
+                    value.as_i64()?.to_string()
+                };
+                let first = raw
+                    .split(',')
+                    .map(str::trim)
+                    .find(|part| !part.is_empty())?;
+                Some(if first.ends_with('p') || first.ends_with('P') {
+                    first.to_string()
+                } else {
+                    format!("{first}p")
+                })
+            });
+
+        let size_bytes = stream.get("size").and_then(|size| {
+            if let Some(number) = size.as_u64() {
+                Some(number)
+            } else if let Some(number) = size.as_i64() {
+                Some(number as u64)
+            } else {
+                size.as_str().and_then(|text| text.parse::<u64>().ok())
+            }
+        });
+
+        let codec = stream
+            .get("codecName")
+            .or_else(|| stream.get("codec"))
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| value.to_string());
+
+        let language = stream
+            .get("language")
+            .or_else(|| stream.get("lanName"))
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| value.to_string());
+
+        let resource_id = stream
+            .get("id")
+            .or_else(|| stream.get("resourceId"))
+            .and_then(|value| {
+                if let Some(number) = value.as_i64() {
+                    Some(number.to_string())
+                } else if let Some(number) = value.as_u64() {
+                    Some(number.to_string())
+                } else {
+                    value.as_str().map(|value| value.to_string())
+                }
+            });
+
+        let quality_label = resolution.as_deref().unwrap_or("stream");
+        let filename = if season > 0 || episode > 0 {
+            format!(
+                "{} S{season:02}E{episode:02} {quality_label}",
+                title.unwrap_or("MovieBox")
+            )
+        } else {
+            format!("{} {quality_label}", title.unwrap_or("MovieBox"))
+        };
+
+        releases.push(Release {
+            provider: ProviderKind::MovieBox,
+            filename,
+            quality: resolution,
+            codec,
+            language,
+            size_bytes,
+            season: Some(season),
+            episode: Some(episode),
+            mirrors: vec![SourceMirror {
+                label: "MovieBox H5".to_string(),
+                resolver_url: link.to_string(),
+                headers: vec![
+                    (
+                        "Referer".to_string(),
+                        MOVIEBOX_H5_STREAM_REFERER.to_string(),
+                    ),
+                    ("User-Agent".to_string(), user_agent.to_string()),
+                ],
+                direct_file: true,
+            }],
+            resource_id,
+        });
+    }
+
+    releases.sort_by(|left, right| {
+        right
+            .resolution_u64()
+            .cmp(&left.resolution_u64())
+            .then_with(|| right.size_bytes.cmp(&left.size_bytes))
+    });
+
+    releases
+}
+
 pub fn moviebox_resource_item_to_release(item: &serde_json::Value) -> Release {
     if let Some(r) = item
         .get("_addon_release")
@@ -1731,6 +1896,119 @@ mod tests {
         assert!(
             releases.is_empty(),
             "an unresolved detector must not produce a release"
+        );
+    }
+
+    fn h5_play_payload() -> serde_json::Value {
+        json!({
+            "code": 0,
+            "data": {
+                "streams": [
+                    {
+                        "format": "MP4",
+                        "id": "11480017012147040",
+                        "url": "https://bcdnxw.hakunaymatata.com/bt/687e5257e080afb37677406be88edfe0.mp4?sign=33f5bd6262bbe1d57d112d8e5729ad03&t=1794113440",
+                        "resolutions": "360",
+                        "size": "242759653",
+                        "duration": 3940,
+                        "codecName": "h264"
+                    },
+                    {
+                        "format": "MP4",
+                        "id": "988887579988738896",
+                        "url": "https://bcdnxw.hakunaymatata.com/resource/d9ed1125b20539a39912e70576e6501f.mp4?sign=cd5482893198553ab32db5f56401ad2d&t=1794113440",
+                        "resolutions": "1080",
+                        "size": "600010570",
+                        "duration": 3940,
+                        "codecName": "h264"
+                    }
+                ],
+                "freeNum": 6,
+                "hasResource": true
+            }
+        })
+    }
+
+    #[test]
+    fn test_h5_play_json_to_releases_parses_signed_series_streams() {
+        let releases = moviebox_h5_play_to_releases(&h5_play_payload(), 1, 1, "TestAgent/1.0");
+
+        assert_eq!(releases.len(), 2);
+        assert_eq!(releases[0].quality.as_deref(), Some("1080p"));
+        assert_eq!(releases[0].season, Some(1));
+        assert_eq!(releases[0].episode, Some(1));
+        assert_eq!(releases[0].size_bytes, Some(600_010_570));
+        assert_eq!(releases[0].codec.as_deref(), Some("h264"));
+        assert_eq!(releases[0].filename, "MovieBox S01E01 1080p");
+        assert_eq!(
+            releases[0].resource_id.as_deref(),
+            Some("988887579988738896")
+        );
+
+        let mirror = &releases[0].mirrors[0];
+        assert!(mirror.direct_file);
+        assert_eq!(mirror.label, "MovieBox H5");
+        assert!(
+            mirror
+                .resolver_url
+                .starts_with("https://bcdnxw.hakunaymatata.com/"),
+            "unexpected mirror: {}",
+            mirror.resolver_url
+        );
+        assert_eq!(
+            mirror.headers,
+            vec![
+                (
+                    "Referer".to_string(),
+                    MOVIEBOX_H5_STREAM_REFERER.to_string()
+                ),
+                ("User-Agent".to_string(), "TestAgent/1.0".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn test_h5_play_json_to_releases_skips_the_placeholder_trailer() {
+        let mut payload = h5_play_payload();
+        payload["data"]["streams"] = json!([
+            {
+                "format": "MP4",
+                "id": "1",
+                "url": "https://macdn.aoneroom.com/other/2026/10/10/80da52722ee7de7a4303290af6783424.mp4",
+                "resolutions": "1080",
+                "size": "824720",
+                "codecName": "hevc"
+            }
+        ]);
+
+        let releases = moviebox_h5_play_to_releases(&payload, 1, 1, "TestAgent/1.0");
+        assert!(
+            releases.is_empty(),
+            "the site trailer must never become a playable release"
+        );
+    }
+
+    #[test]
+    fn test_moviebox_detail_slug_from_detail_url() {
+        let payload = json!({
+            "code": 0,
+            "data": {
+                "detailUrl": "https://movie-box.co/detail/breaking-bad-ej6Bp0MCAo7"
+            }
+        });
+        assert_eq!(
+            moviebox_detail_slug(&payload).as_deref(),
+            Some("breaking-bad-ej6Bp0MCAo7")
+        );
+
+        let path_payload = json!({
+            "data": {
+                "detailPath": "/detail/dune-prophecy-hindi-CDStpDGrEJ7"
+            }
+        });
+        assert_eq!(
+            moviebox_detail_slug(&path_payload).as_deref(),
+            Some("dune-prophecy-hindi-CDStpDGrEJ7")
         );
     }
 
