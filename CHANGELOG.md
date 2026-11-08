@@ -1,10 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.32] - 2026-11-08
 
 ### Fixed
 - **Providers & Stream Resolution**:
   - Restored MovieBox series playback by falling back to the H5 web play endpoint when the subject detector has no direct links. It returns per-episode signed MP4s; the client sends the detail-page `Referer` the endpoint requires, adds the official-site `Referer` the stream CDN requires, and refreshes H5 links before playback.
+
+## [Unreleased]
 
 ## [0.1.31] - 2026-10-26
 
