@@ -24,11 +24,12 @@ impl std::fmt::Display for ToonPlayError {
 ///
 /// Movies resolve end to end: the details payload carries `watchServers`
 /// links (`ravok.buzz/video/<hash>`), and a POST against the player returns
-/// a signed HLS manifest. Series metadata is complete, but series playback
-/// routes through a third-party embed whose loader is tamper-protected, so
-/// `episode_streams` reports it as unavailable until that chain is solved.
+/// a signed HLS manifest. A series episode has no watch servers in the API;
+/// its page on the source site embeds the same ravok player, so the page is
+/// fetched, the player link is read from it, and it resolves the same way.
 const CATALOGUE_BASE: &str = "https://animesalt.streamindia.co.in";
 const PLAYER_BASE: &str = "https://ravok.buzz";
+const EPISODE_PAGE_BASE: &str = "https://animesalt.cx";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
 #[derive(Debug, Clone)]
@@ -135,6 +136,9 @@ struct SeasonEpisode {
     number: usize,
     #[serde(default)]
     title: Option<String>,
+    /// The episode page path on the source site, such as `episode/naruto-1x1`.
+    #[serde(default)]
+    id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -247,22 +251,40 @@ impl ToonPlayClient {
         episode: usize,
     ) -> Result<Vec<Release>, ToonPlayError> {
         let anime = self.fetch_info(id).await?;
-        if parse_media_type(&anime.media_type) == MediaType::Series
-            || !anime.seasons_list.is_empty()
-        {
-            return Err(ToonPlayError::Unsupported(
-                "ToonPlay series playback is not supported yet".to_string(),
-            ));
-        }
-        let _ = (season, episode);
+        let is_series = parse_media_type(&anime.media_type) == MediaType::Series
+            || !anime.seasons_list.is_empty();
+
+        // A series has no watch servers of its own: each episode has a page on the
+        // source site that embeds the same ravok player a movie uses.
+        let server_urls: Vec<String> = if is_series {
+            let page_id = anime
+                .seasons_list
+                .iter()
+                .find(|entry| entry.season.trim().parse::<usize>().ok() == Some(season))
+                .and_then(|entry| entry.episodes.iter().find(|e| e.number == episode))
+                .and_then(|e| e.id.as_deref())
+                .and_then(episode_page_url)
+                .ok_or(ToonPlayError::NotFound)?;
+            let html = self
+                .client
+                .get(&page_id)
+                .send()
+                .await?
+                .error_for_status()?
+                .text()
+                .await?;
+            extract_player_urls(&html)
+        } else {
+            anime
+                .watch_servers
+                .iter()
+                .map(|server| server.url.clone())
+                .filter(|url| !url.trim().is_empty())
+                .collect()
+        };
 
         let mut releases = Vec::new();
-        for url in anime
-            .watch_servers
-            .iter()
-            .map(|server| server.url.clone())
-            .filter(|url| !url.trim().is_empty())
-        {
+        for url in server_urls {
             match self.resolve_watch_server(&url).await {
                 Ok(mirror) => {
                     releases.push(Release {
@@ -272,8 +294,8 @@ impl ToonPlayClient {
                         codec: None,
                         language: detect_language(&anime.title),
                         size_bytes: None,
-                        season: None,
-                        episode: None,
+                        season: is_series.then_some(season),
+                        episode: is_series.then_some(episode),
                         mirrors: vec![mirror],
                         resource_id: None,
                     });
@@ -362,6 +384,37 @@ fn extract_video_hash(url: &str) -> Option<&str> {
     }
 }
 
+/// Builds the episode page URL from an `episode/<slug>` id. Anything else is
+/// refused, so a crafted id can never point the request at another host.
+fn episode_page_url(id: &str) -> Option<String> {
+    let slug = id.trim().trim_matches('/').strip_prefix("episode/")?;
+    let safe = !slug.is_empty()
+        && slug
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
+    safe.then(|| format!("{EPISODE_PAGE_BASE}/episode/{slug}/"))
+}
+
+/// Every `ravok.buzz/video/<hash>` link on an episode page, in page order, once each.
+fn extract_player_urls(html: &str) -> Vec<String> {
+    const MARKER: &str = "ravok.buzz/video/";
+    let mut urls: Vec<String> = Vec::new();
+    for (at, _) in html.match_indices(MARKER) {
+        let rest = &html[at + MARKER.len()..];
+        let hash: String = rest
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric())
+            .collect();
+        if hash.len() >= 16 {
+            let url = format!("{PLAYER_BASE}/video/{hash}");
+            if !urls.contains(&url) {
+                urls.push(url);
+            }
+        }
+    }
+    urls
+}
+
 /// ToonPlay titles usually carry the resolution ("1080p HD BluRay").
 fn detect_quality(title: &str) -> Option<String> {
     let lower = title.to_ascii_lowercase();
@@ -399,6 +452,34 @@ mod tests {
         );
         assert_eq!(extract_video_hash("https://ravok.buzz/video/"), None);
         assert_eq!(extract_video_hash("https://example.com/watch/abc"), None);
+    }
+
+    #[test]
+    fn episode_page_url_accepts_only_episode_ids() {
+        assert_eq!(
+            episode_page_url("episode/naruto-1x1"),
+            Some("https://animesalt.cx/episode/naruto-1x1/".to_string())
+        );
+        assert_eq!(episode_page_url("https://evil.test/x"), None);
+        assert_eq!(episode_page_url("episode/../admin"), None);
+        assert_eq!(episode_page_url("episode/a/b"), None);
+        assert_eq!(episode_page_url("episode/"), None);
+        assert_eq!(episode_page_url("movies-x"), None);
+    }
+
+    #[test]
+    fn player_urls_come_from_the_episode_page() {
+        let html = r#"<iframe src="https://ravok.buzz/video/36660e59856b4de58a219bcf4e27eba3" data-src="https://ravok.buzz/video/36660e59856b4de58a219bcf4e27eba3"></iframe>
+            <a href="https://ravok.buzz/video/short">x</a>
+            <iframe src="https://ravok.buzz/video/aaaaaaaaaaaaaaaabbbbbbbbbbbbbbbb">"#;
+        assert_eq!(
+            extract_player_urls(html),
+            vec![
+                "https://ravok.buzz/video/36660e59856b4de58a219bcf4e27eba3".to_string(),
+                "https://ravok.buzz/video/aaaaaaaaaaaaaaaabbbbbbbbbbbbbbbb".to_string(),
+            ]
+        );
+        assert!(extract_player_urls("<html></html>").is_empty());
     }
 
     #[test]
@@ -448,6 +529,10 @@ mod tests {
         let anime = parsed.anime.unwrap();
         assert_eq!(anime.seasons_list.len(), 1);
         assert_eq!(anime.seasons_list[0].episodes.len(), 1);
+        assert_eq!(
+            anime.seasons_list[0].episodes[0].id.as_deref(),
+            Some("episode/b-1x1")
+        );
     }
 
     #[test]
